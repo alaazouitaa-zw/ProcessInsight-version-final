@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="glass-panel" style="padding: 2rem; max-width: 1000px; margin: 0 auto; position: relative;">
+
+    <h2 style="color: var(--primary); margin-bottom: 2rem; margin-top: 0.5rem;">Mon Historique de Simulations</h2>
+    <table style="width: 100%; border-collapse: collapse; text-align: left;">
+        <thead style="border-bottom: 1px solid var(--glass-border);">
+            <tr>
+                <th style="padding: 0.5rem;">Date</th>
+                <th style="padding: 0.5rem;">Procédé</th>
+                <th style="padding: 0.5rem;">Composants</th>
+                <th style="padding: 0.5rem;">Modèle Utilisé</th>
+                <th style="padding: 0.5rem;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sim in sims %}
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <td style="padding: 1rem 0.5rem;">{{ sim.saved_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td style="padding: 1rem 0.5rem; text-transform: capitalize;">{{ sim.process_type }}</td>
+                <td style="padding: 1rem 0.5rem;">{{ sim.comp1_name }} + {{ sim.comp2_name }}</td>
+                <td style="padding: 1rem 0.5rem;"><span class="model-badge">{{ sim.model_used }}</span></td>
+                <td style="padding: 1rem 0.5rem;">
+                    <a href="{{ url_for('load_sim', sim_id=sim.id) }}" style="color:var(--accent);">Modifier</a>
+                    {% if sim.share_token and sim.results_json %}
+                    <span style="color:#64748b;"> | </span>
+                    <a href="{{ url_for('shared_simulation', token=sim.share_token) }}" target="_blank" style="color:#60a5fa;">Partager</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not sims %}
+            <tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-muted);">Aucune simulation enregistrée.</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

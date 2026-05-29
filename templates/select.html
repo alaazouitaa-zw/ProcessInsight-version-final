@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="selector-container" style="margin-top: 2rem;">
+    <div style="text-align: center; margin-bottom: 3rem;">
+        <h2 style="font-family: var(--font-heading); font-size: 2.5rem; font-weight: 800; margin-bottom: 0.8rem; background: linear-gradient(135deg, #ffffff 26%, #e7edf7 58%, #f7b342 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+            Sélectionnez vos Procédés Simultanés
+        </h2>
+        <p style="color: var(--text-muted); max-width: 650px; margin: 0 auto; font-size: 1.05rem; line-height: 1.5;">
+            Choisissez une ou plusieurs opérations unitaires à simuler et configurer simultanément. ProcessInsight analysera l'ensemble du procédé.
+        </p>
+    </div>
+
+    <form id="selector-form" action="{{ url_for('config_page') }}" method="GET" style="display: flex; flex-direction: column; align-items: center;">
+        <div class="selector-grid" style="width: 100%;">
+            <!-- Distillation Card -->
+            <div class="selector-card" onclick="toggleSelection(this)">
+                <div class="checkbox-indicator"></div>
+                <div class="selector-icon">🔥</div>
+                <div class="selector-title">Distillation</div>
+                <div class="selector-desc">Colonne fractionnée avec plateaux d'équilibre et McCabe-Thiele.</div>
+                <input type="checkbox" name="process" value="distillation" style="display: none;">
+            </div>
+
+            <!-- Flash Card -->
+            <div class="selector-card" onclick="toggleSelection(this)">
+                <div class="checkbox-indicator"></div>
+                <div class="selector-icon">⚡</div>
+                <div class="selector-title">Séparateur Flash</div>
+                <div class="selector-desc">Ballon de vaporisation instantanée adiabatique ou isotherme.</div>
+                <input type="checkbox" name="process" value="flash" style="display: none;">
+            </div>
+
+            <!-- Absorption Card -->
+            <div class="selector-card" onclick="toggleSelection(this)">
+                <div class="checkbox-indicator"></div>
+                <div class="selector-icon">🫧</div>
+                <div class="selector-title">Absorption</div>
+                <div class="selector-desc">Lavage de gaz par solvant liquide sélectif (Méthode de Kremser).</div>
+                <input type="checkbox" name="process" value="absorption" style="display: none;">
+            </div>
+
+            <!-- Extraction Card -->
+            <div class="selector-card" onclick="toggleSelection(this)">
+                <div class="checkbox-indicator"></div>
+                <div class="selector-icon">🧪</div>
+                <div class="selector-title">Extraction L-L</div>
+                <div class="selector-desc">Colonne L-L : McCabe-Thiele, Kremser, Hunter-Nash et bilans matière.</div>
+                <input type="checkbox" name="process" value="extraction" style="display: none;">
+            </div>
+
+            <!-- Pump Card -->
+            <div class="selector-card" onclick="toggleSelection(this)">
+                <div class="checkbox-indicator"></div>
+                <div class="selector-icon">⚙️</div>
+                <div class="selector-title">Pompe</div>
+                <div class="selector-desc">Transport de liquide, hausse de pression et calcul NPSH.</div>
+                <input type="checkbox" name="process" value="pump" style="display: none;">
+            </div>
+
+            <!-- Compressor Card -->
+            <div class="selector-card" onclick="toggleSelection(this)">
+                <div class="checkbox-indicator"></div>
+                <div class="selector-icon">💨</div>
+                <div class="selector-title">Compresseur</div>
+                <div class="selector-desc">Compression de gaz isentropique et puissance requise.</div>
+                <input type="checkbox" name="process" value="compressor" style="display: none;">
+            </div>
+
+            <!-- Heat Exchanger Card -->
+            <div class="selector-card" onclick="toggleSelection(this)">
+                <div class="checkbox-indicator"></div>
+                <div class="selector-icon">🌡️</div>
+                <div class="selector-title">Échangeur</div>
+                <div class="selector-desc">Échange thermique co-courant ou contre-courant.</div>
+                <input type="checkbox" name="process" value="heat_exchanger" style="display: none;">
+            </div>
+        </div>
+
+        <button type="submit" id="submit-btn" class="btn-sunset" style="margin-top: 3rem; font-size: 1.1rem; padding: 1rem 3rem; opacity: 0.5; pointer-events: none; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);">
+            Suivant (Configurer) ➔
+        </button>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function toggleSelection(card) {
+        const checkbox = card.querySelector('input[type="checkbox"]');
+        checkbox.checked = !checkbox.checked;
+        card.classList.toggle('selected', checkbox.checked);
+        
+        const checkedCount = document.querySelectorAll('input[type="checkbox"]:checked').length;
+        const btn = document.getElementById('submit-btn');
+        if (checkedCount > 0) {
+            btn.style.opacity = '1';
+            btn.style.pointerEvents = 'auto';
+            btn.textContent = checkedCount === 1 ? 'Suivant (Configurer) ➔' : `Configurer ${checkedCount} procédés ➔`;
+        } else {
+            btn.style.opacity = '0.5';
+            btn.style.pointerEvents = 'none';
+            btn.textContent = 'Suivant (Configurer) ➔';
+        }
+    }
+</script>
+{% endblock %}

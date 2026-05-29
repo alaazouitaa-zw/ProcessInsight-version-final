@@ -1,0 +1,855 @@
+{# ════════════════════════════════════════════════════════════════
+   DISTILLATION SECTION COMPLÈTE
+   À insérer dans simulation.html à la place du bloc tab-mccabe existant
+   Compatible avec results.op_results.distillation retourné par distillation_engine.py
+   ════════════════════════════════════════════════════════════════ #}
+
+{% if 'distillation' in results.process_types and results.op_results and results.op_results.distillation %}
+{% set mc = results.op_results.distillation %}
+
+<div id="tab-mccabe" class="tab-content" style="display:flex; flex-direction:column; gap:1.5rem;">
+
+<!-- ═══════════════════════════════════════════════════════════
+     SCIENTIFIC DISCLAIMER
+═══════════════════════════════════════════════════════════ -->
+<div style="background:linear-gradient(135deg,rgba(59,130,246,0.08),rgba(139,92,246,0.08));
+            border:1px solid rgba(59,130,246,0.25); padding:10px 18px; border-radius:10px;
+            font-size:0.78rem; color:#93c5fd; display:flex; align-items:center; gap:10px;">
+  <span style="font-size:1.2rem;">🛡️</span>
+  <span><strong>Base scientifique :</strong> Tous les résultats sont calculés via les méthodes
+  Fenske (1932), Underwood (1932), Gilliland-Molokanov (1972) et McCabe-Thiele (1925),
+  conformément à <em>Seader &amp; Henley — Separation Process Principles</em>.
+  Vérification de cohérence physique et thermodynamique automatique.</span>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SECTION 1 — DISTILLATION DASHBOARD (KPIs)
+═══════════════════════════════════════════════════════════ -->
+<div class="glass-panel" style="padding:1.5rem;">
+  <h4 style="margin:0 0 1rem 0; font-family:'Outfit'; font-size:1.2rem; font-weight:800;
+             color:var(--primary); display:flex; align-items:center; gap:8px;">
+    📊 DISTILLATION DASHBOARD
+    <span style="font-size:0.7rem; background:rgba(59,130,246,0.15); color:#60a5fa;
+                 padding:2px 8px; border-radius:99px; font-weight:500; font-family:monospace;">
+      TEMPS RÉEL
+    </span>
+  </h4>
+
+  <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:1rem;">
+
+    <!-- Pureté distillat -->
+    <div class="kpi-card" style="border-bottom:3px solid #10b981;">
+      <div class="kpi-label">Pureté Distillat xD</div>
+      <div class="kpi-value" style="color:#10b981;">
+        {{ "%.2f"|format(mc.dashboard.xD_pct) }} %
+      </div>
+      <div class="kpi-sub">mol {{ results.components[0] }}</div>
+      <div class="kpi-bar"><div style="width:{{ mc.dashboard.xD_pct }}%; background:#10b981;"></div></div>
+    </div>
+
+    <!-- Pureté résidu -->
+    <div class="kpi-card" style="border-bottom:3px solid #f59e0b;">
+      <div class="kpi-label">Pureté Résidu xB</div>
+      <div class="kpi-value" style="color:#f59e0b;">
+        {{ "%.2f"|format(mc.dashboard.xB_pct) }} %
+      </div>
+      <div class="kpi-sub">mol {{ results.components[1] }}</div>
+      <div class="kpi-bar"><div style="width:{{ mc.dashboard.xB_pct }}%; background:#f59e0b;"></div></div>
+    </div>
+
+    <!-- Étages théoriques -->
+    <div class="kpi-card" style="border-bottom:3px solid #3b82f6;">
+      <div class="kpi-label">Étages Théoriques N</div>
+      <div class="kpi-value" style="color:#60a5fa;">{{ mc.N_steps }}</div>
+      <div class="kpi-sub">Plateaux réels : {{ mc.N_real }}</div>
+      <div class="kpi-sub" style="color:#64748b;">Nmin (Fenske) = {{ mc.N_min }}</div>
+    </div>
+
+    <!-- Reflux -->
+    <div class="kpi-card" style="border-bottom:3px solid #a855f7;">
+      <div class="kpi-label">Rapport de Reflux R</div>
+      <div class="kpi-value" style="color:#c084fc;">{{ "%.3f"|format(mc.R_used) }}</div>
+      <div class="kpi-sub">Rmin = {{ "%.3f"|format(mc.R_min) }}</div>
+      <div class="kpi-sub" style="color:{% if mc.R_ratio < 1.2 %}#ef4444{% elif mc.R_ratio > 3 %}#f59e0b{% else %}#10b981{% endif %};">
+        R/Rmin = {{ "%.2f"|format(mc.R_ratio) }}
+      </div>
+    </div>
+
+    <!-- Rebouilleur -->
+    <div class="kpi-card" style="border-bottom:3px solid #ef4444;">
+      <div class="kpi-label">Charge Rebouilleur</div>
+      <div class="kpi-value" style="color:#f87171;">{{ mc.energy.Q_reboiler }} kW</div>
+      <div class="kpi-sub">QC = {{ mc.energy.Q_condenser }} kW</div>
+    </div>
+
+    <!-- Récupération -->
+    <div class="kpi-card" style="border-bottom:3px solid #06b6d4;">
+      <div class="kpi-label">Récupération Comp. Léger</div>
+      <div class="kpi-value" style="color:#22d3ee;">
+        {{ "%.1f"|format(mc.dashboard.recovery_light) }} %
+      </div>
+      <div class="kpi-sub">Efficacité thermique : {{ mc.energy.thermal_efficiency }}%</div>
+    </div>
+
+    <!-- État alimentation -->
+    <div class="kpi-card" style="border-bottom:3px solid {{ mc.q_info.color }};">
+      <div class="kpi-label">État Alimentation (q)</div>
+      <div class="kpi-value" style="color:{{ mc.q_info.color }}; font-size:1.1rem;">
+        q = {{ "%.3f"|format(mc.q_info.q) }}
+      </div>
+      <div class="kpi-sub">
+        <span style="background:rgba(0,0,0,0.3); padding:2px 7px; border-radius:99px;
+                     font-size:0.65rem; color:{{ mc.q_info.color }};">
+          {{ mc.q_info.badge }}
+        </span>
+      </div>
+    </div>
+
+  </div><!-- /grid KPIs -->
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SECTION 2 — IA DIAGNOSTICS & RECOMMANDATIONS
+═══════════════════════════════════════════════════════════ -->
+<div class="glass-panel" style="padding:1.25rem;">
+  <h5 style="margin:0 0 0.75rem 0; color:#fff; display:flex; align-items:center; gap:8px;">
+    🤖 Validation IA & Recommandations Thermodynamiques
+  </h5>
+  <div style="display:flex; flex-direction:column; gap:0.5rem;">
+    {% for w in mc.warnings %}
+    <div style="padding:10px 14px; border-radius:6px; font-size:0.82rem;
+                border-left:4px solid
+                {% if w.type == 'danger' %}#ef4444
+                {% elif w.type == 'warning' %}#f59e0b
+                {% elif w.type == 'success' %}#10b981
+                {% else %}#3b82f6{% endif %};
+                background:
+                {% if w.type == 'danger' %}rgba(239,68,68,0.08)
+                {% elif w.type == 'warning' %}rgba(245,158,11,0.08)
+                {% elif w.type == 'success' %}rgba(16,185,129,0.08)
+                {% else %}rgba(59,130,246,0.08){% endif %};">
+      {{ w.message }}
+    </div>
+    {% else %}
+    <div style="color:#64748b; font-size:0.85rem;">Aucun avertissement — paramètres cohérents.</div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SECTION 3 — INPUT PROCESS DATA (résumé)
+═══════════════════════════════════════════════════════════ -->
+<div class="glass-panel" style="padding:1.25rem;">
+  <h5 style="margin:0 0 1rem 0; color:var(--primary);">⚙️ Données du Procédé</h5>
+  <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:0.75rem; font-size:0.82rem;">
+
+    <div class="data-group">
+      <div class="data-group-title">🔴 Alimentation (Feed)</div>
+      <div class="data-row"><span>Débit F</span><strong>{{ mc.flows.F }} kmol/h</strong></div>
+      <div class="data-row"><span>Composition xF</span><strong>{{ mc.mass_balance.xF }}</strong></div>
+      <div class="data-row"><span>Qualité q</span>
+        <strong style="color:{{ mc.q_info.color }};">{{ mc.q_info.q }} — {{ mc.q_info.state }}</strong>
+      </div>
+    </div>
+
+    <div class="data-group">
+      <div class="data-group-title">🟢 Spécifications Produits</div>
+      <div class="data-row"><span>Distillat xD</span><strong>{{ mc.mass_balance.xD }}</strong></div>
+      <div class="data-row"><span>Résidu xB</span><strong>{{ mc.mass_balance.xB }}</strong></div>
+      <div class="data-row"><span>Débit D</span><strong>{{ mc.flows.D }} kmol/h</strong></div>
+      <div class="data-row"><span>Débit B</span><strong>{{ mc.flows.B }} kmol/h</strong></div>
+    </div>
+
+    <div class="data-group">
+      <div class="data-group-title">🔵 Paramètres Colonne</div>
+      <div class="data-row"><span>Reflux R opératoire</span><strong>{{ mc.R_used }}</strong></div>
+      <div class="data-row"><span>L rect. (kmol/h)</span><strong>{{ mc.flows.L_rect }}</strong></div>
+      <div class="data-row"><span>V rect. (kmol/h)</span><strong>{{ mc.flows.V_rect }}</strong></div>
+      <div class="data-row"><span>L épuis. (kmol/h)</span><strong>{{ mc.flows.L_strip }}</strong></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SECTION 4 — Q-FACTOR MODULE
+═══════════════════════════════════════════════════════════ -->
+<div class="glass-panel" style="padding:1.25rem;">
+  <h5 style="margin:0 0 0.75rem 0; color:var(--primary);">🌡️ Module Qualité d'Alimentation (q-factor)</h5>
+  <div style="display:grid; grid-template-columns:1fr 2fr; gap:1rem; align-items:center;">
+
+    <div style="text-align:center; padding:1rem; background:rgba(0,0,0,0.2); border-radius:10px;
+                border:2px solid {{ mc.q_info.color }}30;">
+      <div style="font-size:2.5rem; font-weight:900; color:{{ mc.q_info.color }}; font-family:monospace;">
+        q = {{ mc.q_info.q }}
+      </div>
+      <div style="margin-top:8px;">
+        <span style="background:{{ mc.q_info.color }}20; color:{{ mc.q_info.color }};
+                     padding:4px 12px; border-radius:99px; font-size:0.75rem; font-weight:600;">
+          {{ mc.q_info.badge }}
+        </span>
+      </div>
+      <div style="margin-top:10px; font-size:0.8rem; color:#94a3b8;">{{ mc.q_info.state }}</div>
+
+      <!-- Thermomètre visuel -->
+      <div style="margin-top:14px; display:flex; justify-content:center; gap:6px; align-items:flex-end;">
+        {% for label, val, col in [('Surcha.', -0.2, '#ef4444'), ('Vap.Sat.', 0.0, '#f87171'),
+                                    ('Mixte', 0.5, '#f59e0b'), ('Liq.Sat.', 1.0, '#10b981'),
+                                    ('S-Ref.', 1.2, '#60a5fa')] %}
+        <div style="text-align:center;">
+          <div style="width:28px; border-radius:4px; margin:0 auto; transition:height 0.5s;
+                      background:{% if mc.q_info.q|float == val %}{{ col }}{% else %}rgba(255,255,255,0.1){% endif %};
+                      height:{% if mc.q_info.q|float == val %}40px{% else %}20px{% endif %};"></div>
+          <div style="font-size:0.55rem; color:#64748b; margin-top:3px;">{{ label }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div>
+      <p style="font-size:0.85rem; color:#cbd5e1; line-height:1.7; background:rgba(0,0,0,0.15);
+                padding:12px; border-radius:8px; border-left:3px solid {{ mc.q_info.color }};">
+        {{ mc.q_info.explanation }}
+      </p>
+      {% if mc.q_info.q_line_slope != None %}
+      <div style="margin-top:10px; font-family:monospace; font-size:0.82rem;
+                  background:rgba(0,0,0,0.2); padding:10px; border-radius:6px; color:#e2e8f0;">
+        <strong style="color:var(--primary);">Équation de la q-line :</strong><br>
+        {% if mc.q_info.q|float == 1.0 %}
+          x = {{ mc.mass_balance.xF }} (droite verticale)
+        {% else %}
+          y = {{ mc.q_info.q_line_slope }}·x − {{ mc.mass_balance.xF }}/(q−1)
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SECTION 5 — MASS BALANCE MODULE
+═══════════════════════════════════════════════════════════ -->
+<div class="glass-panel" style="padding:1.25rem;">
+  <h5 style="margin:0 0 1rem 0; color:var(--primary);">⚖️ Module Bilan de Matière</h5>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+
+    <!-- Équations -->
+    <div>
+      <div class="eq-box">
+        <div class="eq-title">Bilan Global</div>
+        <div class="eq-formula">F = D + B</div>
+        <div class="eq-result">
+          {{ mc.flows.F }} = {{ mc.flows.D }} + {{ mc.flows.B }} kmol/h
+          {% if mc.mass_balance.balance_ok %}
+          <span style="color:#10b981;"> ✓ Fermé</span>
+          {% else %}
+          <span style="color:#ef4444;"> ✗ Erreur {{ mc.mass_balance.balance_error_pct }}%</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="eq-box" style="margin-top:8px;">
+        <div class="eq-title">Bilan Composant Léger</div>
+        <div class="eq-formula">F·xF = D·xD + B·xB</div>
+        <div class="eq-result">
+          {{ mc.mass_balance.F_light }} = {{ mc.mass_balance.D_light }} + {{ mc.mass_balance.B_light }} kmol/h
+        </div>
+      </div>
+
+      <div class="eq-box" style="margin-top:8px;">
+        <div class="eq-title">Droite de Rectification</div>
+        <div class="eq-formula">y = (R/(R+1))·x + xD/(R+1)</div>
+        <div class="eq-result">
+          y = {{ "%.4f"|format(mc.sR) }}·x + {{ "%.4f"|format(mc.iR) }}
+        </div>
+      </div>
+
+      <div class="eq-box" style="margin-top:8px;">
+        <div class="eq-title">Droite d'Épuisement</div>
+        <div class="eq-formula">y = (L'/V')·x − B·xB/V'</div>
+        <div class="eq-result">
+          y = {{ "%.4f"|format(mc.sE) }}·x + {{ "%.4f"|format(mc.iE) }}
+        </div>
+      </div>
+    </div>
+
+    <!-- Tableau bilan -->
+    <div>
+      <table style="width:100%; border-collapse:collapse; font-size:0.8rem;">
+        <thead>
+          <tr style="background:rgba(255,255,255,0.08); border-bottom:1px solid rgba(255,255,255,0.1);">
+            <th style="padding:7px; text-align:left; color:#94a3b8;">Flux</th>
+            <th style="padding:7px; text-align:right; color:#94a3b8;">Total (kmol/h)</th>
+            <th style="padding:7px; text-align:right; color:#94a3b8;">x léger</th>
+            <th style="padding:7px; text-align:right; color:#94a3b8;">Léger (kmol/h)</th>
+            <th style="padding:7px; text-align:right; color:#94a3b8;">Lourd (kmol/h)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+            <td style="padding:7px; color:#f59e0b; font-weight:bold;">Alimentation F</td>
+            <td style="padding:7px; text-align:right; font-family:monospace;">{{ mc.flows.F }}</td>
+            <td style="padding:7px; text-align:right; font-family:monospace;">{{ mc.mass_balance.xF }}</td>
+            <td style="padding:7px; text-align:right; font-family:monospace;">{{ mc.mass_balance.F_light }}</td>
+            <td style="padding:7px; text-align:right; font-family:monospace;">{{ mc.mass_balance.F_heavy }}</td>
+          </tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+            <td style="padding:7px; color:#10b981; font-weight:bold;">Distillat D</td>
+            <td style="padding:7px; text-align:right; font-family:monospace;">{{ mc.flows.D }}</td>
+            <td style="padding:7px; text-align:right; font-family:monospace;">{{ mc.mass_balance.xD }}</td>
+            <td style="padding:7px; text-align:right; font-family:monospace;">{{ mc.mass_balance.D_light }}</td>
+            <td style="padding:7px; text-align:right; font-family:monospace;">{{ mc.mass_balance.D_heavy }}</td>
+          </tr>
+          <tr>
+            <td style="padding:7px; color:#f87171; font-weight:bold;">Résidu B</td>
+            <td style="padding:7px; text-align:right; font-family:monospace;">{{ mc.flows.B }}</td>
+            <td style="padding:7px; text-align:right; font-family:monospace;">{{ mc.mass_balance.xB }}</td>
+            <td style="padding:7px; text-align:right; font-family:monospace;">{{ mc.mass_balance.B_light }}</td>
+            <td style="padding:7px; text-align:right; font-family:monospace;">{{ mc.mass_balance.B_heavy }}</td>
+          </tr>
+          <tr style="background:rgba(16,185,129,0.05); border-top:2px solid rgba(16,185,129,0.2);">
+            <td colspan="3" style="padding:7px; font-size:0.75rem; color:#10b981;">Vérification fermeture :</td>
+            <td colspan="2" style="padding:7px; font-size:0.75rem; font-family:monospace; color:#10b981;">
+              Erreur = {{ mc.mass_balance.balance_error_pct }}%
+              {% if mc.mass_balance.balance_ok %} ✓{% else %} ✗{% endif %}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SECTION 6 — THEORETICAL STAGES MODULE (Fenske/Underwood/Gilliland)
+═══════════════════════════════════════════════════════════ -->
+<div class="glass-panel" style="padding:1.25rem;">
+  <h5 style="margin:0 0 1rem 0; color:var(--primary);">🔢 Module Étages Théoriques (FUG)</h5>
+
+  <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:0.75rem; margin-bottom:1rem;">
+
+    <div class="method-card" style="border-color:#60a5fa20;">
+      <div class="method-title" style="color:#60a5fa;">FENSKE (1932)</div>
+      <div class="method-result">Nmin = <strong>{{ mc.N_min }}</strong></div>
+      <div class="method-formula">{{ mc.fenske.formula }}</div>
+    </div>
+
+    <div class="method-card" style="border-color:#34d98020;">
+      <div class="method-title" style="color:#34d980;">UNDERWOOD (1932)</div>
+      <div class="method-result">Rmin = <strong>{{ mc.R_min }}</strong></div>
+      <div class="method-formula">{{ mc.underwood.formula }}</div>
+    </div>
+
+    <div class="method-card" style="border-color:#f59e0b20;">
+      <div class="method-title" style="color:#f59e0b;">GILLILAND-MOLOKANOV</div>
+      <div class="method-result">N = <strong>{{ mc.N_gilliland }}</strong></div>
+      <div class="method-formula">{{ mc.gilliland.formula }}</div>
+    </div>
+
+    <div class="method-card" style="border-color:#a855f720;">
+      <div class="method-title" style="color:#a855f7;">McCABE-THIELE (1925)</div>
+      <div class="method-result">N = <strong>{{ mc.N_steps }}</strong> étages théoriques<br>
+        Nr = <strong>{{ mc.N_real }}</strong> plateaux réels</div>
+      <div class="method-formula">Plateau alimentation : n°{{ mc.feed_stage }}</div>
+    </div>
+
+  </div>
+
+  <!-- Mode Pédagogique -->
+  <details style="margin-top:0.5rem;">
+    <summary style="cursor:pointer; color:#60a5fa; font-size:0.85rem; padding:6px 0;">
+      📚 Mode Pédagogique — Explication des méthodes FUG
+    </summary>
+    <div style="margin-top:10px; display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:0.8rem;">
+      <div class="pedagogy-box">
+        <strong style="color:#60a5fa;">Méthode de Fenske</strong><br>
+        Donne le nombre minimum d'étages Nmin à reflux total (L/V → 1).
+        C'est la borne inférieure absolue : aucune colonne avec N &lt; Nmin ne peut réaliser la séparation,
+        quelle que soit la hauteur. Valable uniquement si α est constant dans toute la colonne.
+      </div>
+      <div class="pedagogy-box">
+        <strong style="color:#34d980;">Méthode d'Underwood</strong><br>
+        Détermine le reflux minimum Rmin en dessous duquel le nombre d'étages devient infini
+        (pincement). On résout l'équation implicite en θ, puis on calcule Rmin = Vmin/D − 1.
+        La valeur recommandée en industrie est R = 1.2 à 1.5 × Rmin.
+      </div>
+      <div class="pedagogy-box">
+        <strong style="color:#f59e0b;">Corrélation de Gilliland</strong><br>
+        Relie les variables (R, N) aux minima (Rmin, Nmin) via la corrélation empirique de Molokanov :
+        X = (R−Rmin)/(R+1), Y = 1−exp[...], N = (Nmin+Y)/(1−Y).
+        Précision typique ±15% pour les systèmes binaires idéaux.
+      </div>
+      <div class="pedagogy-box">
+        <strong style="color:#a855f7;">McCabe-Thiele</strong><br>
+        Construction graphique des étages par paliers entre la courbe d'équilibre et les droites
+        opératoires. Chaque palier = 1 étage théorique. L'escalier commence à (xD, xD) et descend
+        jusqu'à xB. Le plateau d'alimentation est là où on passe de la droite rectification à
+        la droite d'épuisement.
+      </div>
+    </div>
+  </details>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SECTION 7 — COLONNE INTERACTIVE + McCABE-THIELE PLOTLY
+═══════════════════════════════════════════════════════════ -->
+<div style="display:grid; grid-template-columns:1fr 2fr; gap:1rem;">
+
+  <!-- Colonne SVG interactive -->
+  <div class="glass-panel" style="padding:1.25rem; display:flex; flex-direction:column; gap:10px;">
+    <h5 style="margin:0; color:var(--primary); text-align:center;">Colonne de Fractionnement</h5>
+    <p style="margin:0; font-size:0.75rem; color:#64748b; text-align:center;">
+      Cliquez sur un plateau pour inspecter
+    </p>
+
+    <div style="display:flex; gap:1rem; align-items:flex-start;">
+      <!-- SVG Colonne -->
+      <svg id="col-svg" width="100" height="{% if mc.N_steps > 30 %}380{% else %}320{% endif %}"
+           viewBox="0 0 100 {% if mc.N_steps > 30 %}380{% else %}320{% endif %}"
+           style="overflow:visible; flex-shrink:0;">
+
+        <!-- Corps colonne -->
+        <rect x="30" y="30" width="40" height="260" rx="5"
+              fill="rgba(30,41,59,0.9)" stroke="#475569" stroke-width="1.5"/>
+
+        <!-- Condenseur -->
+        <rect x="35" y="5" width="30" height="18" rx="3"
+              fill="#1e3a8a" stroke="#3b82f6" stroke-width="1"/>
+        <text x="50" y="17" text-anchor="middle" font-size="7" fill="#93c5fd" font-family="monospace">COND</text>
+        <line x1="50" y1="23" x2="50" y2="30" stroke="#3b82f6" stroke-width="1.5"/>
+
+        <!-- Rebouilleur -->
+        <rect x="35" y="292" width="30" height="18" rx="3"
+              fill="#7f1d1d" stroke="#ef4444" stroke-width="1"/>
+        <text x="50" y="304" text-anchor="middle" font-size="7" fill="#fca5a5" font-family="monospace">REB</text>
+        <line x1="50" y1="290" x2="50" y2="292" stroke="#ef4444" stroke-width="1.5"/>
+
+        <!-- Flux distillat -->
+        <path d="M 65 14 L 90 14" stroke="#10b981" stroke-width="1.5" fill="none"
+              stroke-dasharray="4,2" style="animation:dash-flow 0.8s linear infinite;"/>
+        <text x="92" y="17" font-size="7" fill="#10b981" font-family="monospace">D</text>
+
+        <!-- Flux résidu -->
+        <path d="M 65 301 L 90 301" stroke="#f59e0b" stroke-width="1.5" fill="none"
+              stroke-dasharray="4,2" style="animation:dash-flow 0.8s linear infinite;"/>
+        <text x="92" y="304" font-size="7" fill="#f59e0b" font-family="monospace">B</text>
+
+        <!-- Plateaux -->
+        {% set n_tot = mc.N_steps %}
+        {% for stg in mc.profile %}
+          {% set py = 30 + (stg.stage / (n_tot + 1)) * 260 %}
+          <line x1="32" y1="{{ py }}" x2="68" y2="{{ py }}"
+                stroke="{% if stg.stage == mc.feed_stage %}#f97316{% else %}rgba(255,255,255,0.18){% endif %}"
+                stroke-width="{% if stg.stage == mc.feed_stage %}2{% else %}1{% endif %}"/>
+
+          <!-- Hitbox interactive -->
+          <rect class="plate-hit" x="30" y="{{ py - 7 }}" width="40" height="14"
+                fill="transparent" style="cursor:pointer;"
+                onclick="showPlate({{ stg.stage }}, {{ stg.temp|default(0) }},
+                         {{ stg.x }}, {{ stg.y }}, {{ stg.L }}, {{ stg.V }},
+                         '{{ stg.section }}')"
+                onmouseover="this.setAttribute('fill','rgba(245,158,11,0.2)')"
+                onmouseout="this.setAttribute('fill','transparent')"/>
+
+          {% if stg.stage == mc.feed_stage %}
+          <!-- Flèche alimentation -->
+          <path d="M 5 {{ py }} L 28 {{ py }}" stroke="#f97316" stroke-width="1.5"
+                fill="none" marker-end="url(#arr-feed)"/>
+          <text x="2" y="{{ py - 3 }}" font-size="6" fill="#f97316" font-family="monospace">F</text>
+          {% endif %}
+
+        {% endfor %}
+
+        <!-- Vapeur montante (animation) -->
+        <circle r="3" fill="#f87171" opacity="0.7" style="animation:vapor-up 1.5s ease-in infinite;">
+          <animateMotion dur="1.5s" repeatCount="indefinite"
+                         path="M 42 285 L 42 40"/>
+        </circle>
+        <circle r="2" fill="#fca5a5" opacity="0.5" style="animation:vapor-up 2s ease-in infinite 0.7s;">
+          <animateMotion dur="2s" repeatCount="indefinite" begin="0.7s"
+                         path="M 48 285 L 48 40"/>
+        </circle>
+
+        <!-- Liquide descendant (animation) -->
+        <circle r="3" fill="#60a5fa" opacity="0.7">
+          <animateMotion dur="2s" repeatCount="indefinite"
+                         path="M 58 40 L 58 285"/>
+        </circle>
+
+        <!-- Marqueurs -->
+        <defs>
+          <marker id="arr-feed" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 z" fill="#f97316"/>
+          </marker>
+        </defs>
+      </svg>
+
+      <!-- Info plateau -->
+      <div id="plate-info-box" style="flex:1; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.06);
+                                       padding:10px; border-radius:8px; min-height:150px;
+                                       display:flex; flex-direction:column; justify-content:center;
+                                       font-size:0.8rem;">
+        <p style="color:#64748b; text-align:center; margin:0;">
+          ← Cliquer sur un plateau
+        </p>
+      </div>
+    </div>
+
+    <!-- Légende -->
+    <div style="font-size:0.7rem; color:#64748b; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+      <span>▬ <span style="color:#f97316;">Alimentation</span></span>
+      <span>● <span style="color:#f87171;">Vapeur ↑</span></span>
+      <span>● <span style="color:#60a5fa;">Liquide ↓</span></span>
+    </div>
+  </div>
+
+  <!-- Plotly McCabe-Thiele -->
+  <div class="glass-panel" style="padding:1.25rem;">
+    <h5 style="margin:0 0 10px 0; color:var(--primary);">
+      📈 Diagramme McCabe-Thiele (Interactif)
+    </h5>
+    <div id="dist-plotly-mccabe" style="height:340px;"></div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SECTION 8 — SIMULATION COLONNE (Profils par étage)
+═══════════════════════════════════════════════════════════ -->
+<div class="glass-panel" style="padding:1.25rem;">
+  <h5 style="margin:0 0 1rem 0; color:var(--primary);">🔬 Simulation Colonne — Profils Internes</h5>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem;">
+    <div>
+      <h6 style="color:#94a3b8; margin:0 0 6px 0; font-size:0.8rem;">Profil de Température</h6>
+      <div id="dist-plotly-temp" style="height:240px;"></div>
+    </div>
+    <div>
+      <h6 style="color:#94a3b8; margin:0 0 6px 0; font-size:0.8rem;">Profil de Composition</h6>
+      <div id="dist-plotly-comp" style="height:240px;"></div>
+    </div>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem;">
+    <div>
+      <h6 style="color:#94a3b8; margin:0 0 6px 0; font-size:0.8rem;">Débits Internes L et V</h6>
+      <div id="dist-plotly-flows" style="height:220px;"></div>
+    </div>
+    <div>
+      <h6 style="color:#94a3b8; margin:0 0 6px 0; font-size:0.8rem;">Bilan Énergétique</h6>
+      <div id="dist-plotly-energy" style="height:220px;"></div>
+    </div>
+  </div>
+
+  <!-- Tableau profil par étage -->
+  <div style="overflow-x:auto; margin-top:0.5rem;">
+    <table style="width:100%; border-collapse:collapse; font-size:0.78rem;">
+      <thead>
+        <tr style="background:rgba(255,255,255,0.07); border-bottom:1px solid rgba(255,255,255,0.1);">
+          <th style="padding:8px; text-align:left; color:#94a3b8;">#</th>
+          <th style="padding:8px; color:#94a3b8;">Section</th>
+          <th style="padding:8px; color:#60a5fa;">x (liq.)</th>
+          <th style="padding:8px; color:#34d980;">y (vap.)</th>
+          <th style="padding:8px; color:#f87171;">T (°C)</th>
+          <th style="padding:8px; color:#94a3b8;">L (kmol/h)</th>
+          <th style="padding:8px; color:#94a3b8;">V (kmol/h)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in mc.profile %}
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.04);
+                   {% if s.stage == mc.feed_stage %}background:rgba(249,115,22,0.07);{% endif %}
+                   cursor:pointer;"
+            onclick="showPlate({{ s.stage }}, {{ s.temp|default(0) }},
+                     {{ s.x }}, {{ s.y }}, {{ s.L }}, {{ s.V }}, '{{ s.section }}')"
+            onmouseover="this.style.background='rgba(255,255,255,0.04)'"
+            onmouseout="this.style.background='{% if s.stage == mc.feed_stage %}rgba(249,115,22,0.07){% else %}transparent{% endif %}'">
+          <td style="padding:7px; font-weight:bold; color:#e2e8f0; font-family:monospace;">{{ s.stage }}</td>
+          <td style="padding:7px;">
+            <span style="font-size:0.7rem; padding:2px 7px; border-radius:99px;
+                         {% if s.section == 'Rectification' %}background:rgba(59,130,246,0.15); color:#60a5fa;
+                         {% else %}background:rgba(245,158,11,0.15); color:#f59e0b;{% endif %}">
+              {{ s.section }}
+            </span>
+            {% if s.stage == mc.feed_stage %}
+            <span style="font-size:0.65rem; margin-left:4px; color:#f97316;">← ALIM</span>
+            {% endif %}
+          </td>
+          <td style="padding:7px; font-family:monospace; color:#93c5fd;">{{ "%.4f"|format(s.x) }}</td>
+          <td style="padding:7px; font-family:monospace; color:#6ee7b7;">{{ "%.4f"|format(s.y) }}</td>
+          <td style="padding:7px; font-family:monospace; color:#fca5a5;">{{ s.temp }}</td>
+          <td style="padding:7px; font-family:monospace; color:#cbd5e1;">{{ s.L }}</td>
+          <td style="padding:7px; font-family:monospace; color:#cbd5e1;">{{ s.V }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SECTION 9 — ENERGY MODULE
+═══════════════════════════════════════════════════════════ -->
+<div class="glass-panel" style="padding:1.25rem;">
+  <h5 style="margin:0 0 1rem 0; color:var(--primary);">⚡ Module Bilan Énergétique</h5>
+
+  <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:1rem; margin-bottom:1rem;">
+
+    <div class="kpi-card" style="border-bottom:3px solid #3b82f6;">
+      <div class="kpi-label">Condenseur QC</div>
+      <div class="kpi-value" style="color:#60a5fa;">{{ mc.energy.Q_condenser }} kW</div>
+      <div class="kpi-sub">Refroidissement</div>
+    </div>
+    <div class="kpi-card" style="border-bottom:3px solid #ef4444;">
+      <div class="kpi-label">Rebouilleur QR</div>
+      <div class="kpi-value" style="color:#f87171;">{{ mc.energy.Q_reboiler }} kW</div>
+      <div class="kpi-sub">Vaporisation</div>
+    </div>
+    <div class="kpi-card" style="border-bottom:3px solid #a855f7;">
+      <div class="kpi-label">Consommation Totale</div>
+      <div class="kpi-value" style="color:#c084fc;">{{ mc.energy.Q_total }} kW</div>
+      <div class="kpi-sub">QC + QR</div>
+    </div>
+    <div class="kpi-card" style="border-bottom:3px solid #10b981;">
+      <div class="kpi-label">Consomm. Spécifique</div>
+      <div class="kpi-value" style="color:#34d980;">{{ mc.energy.Q_specific }} kJ/kmol</div>
+      <div class="kpi-sub">par kmol de distillat</div>
+    </div>
+    <div class="kpi-card" style="border-bottom:3px solid #f59e0b;">
+      <div class="kpi-label">Efficacité Thermique</div>
+      <div class="kpi-value" style="color:#fbbf24;">{{ mc.energy.thermal_efficiency }} %</div>
+      <div class="kpi-sub">rendement Carnot estimé</div>
+    </div>
+
+  </div>
+
+  <!-- Équations énergétiques -->
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+    <div class="eq-box">
+      <div class="eq-title">Condenseur Total (Raoult)</div>
+      <div class="eq-formula">QC = (R+1)·D·λ</div>
+      <div class="eq-result">
+        QC = ({{ mc.R_used }}+1) × {{ mc.flows.D }} × λ = {{ mc.energy.Q_condenser }} kW
+      </div>
+    </div>
+    <div class="eq-box">
+      <div class="eq-title">Rebouilleur</div>
+      <div class="eq-formula">QR = QC + F·(1−q)·λ</div>
+      <div class="eq-result">
+        QR = {{ mc.energy.Q_condenser }} + {{ mc.flows.F }}×(1−{{ mc.q_info.q }})×λ = {{ mc.energy.Q_reboiler }} kW
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>{# /tab-mccabe #}
+
+<!-- ═══════════════════════════════════════════════════════════
+     STYLES INLINE
+═══════════════════════════════════════════════════════════ -->
+<style>
+.kpi-card {
+  background: rgba(30,41,59,0.6);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+  padding: 1rem;
+  text-align: center;
+}
+.kpi-label { font-size: 0.72rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+.kpi-value { font-family: 'Outfit'; font-size: 1.6rem; font-weight: 800; color: #fff; line-height: 1; }
+.kpi-sub   { font-size: 0.68rem; color: #64748b; margin-top: 5px; }
+.kpi-bar   { height: 4px; background: rgba(255,255,255,0.08); border-radius: 99px; margin-top: 8px; overflow: hidden; }
+.kpi-bar div { height: 100%; border-radius: 99px; transition: width 1s ease; }
+
+.data-group { background: rgba(0,0,0,0.15); border-radius: 8px; padding: 10px; }
+.data-group-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin-bottom: 8px; font-weight: 600; }
+.data-row { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.8rem; color: #cbd5e1; }
+.data-row strong { color: #e2e8f0; font-family: monospace; }
+
+.eq-box { background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-left: 3px solid var(--primary); border-radius: 0 6px 6px 0; padding: 10px 12px; }
+.eq-title { font-size: 0.7rem; color: #60a5fa; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.eq-formula { font-family: monospace; color: #e2e8f0; font-size: 0.9rem; }
+.eq-result { font-family: monospace; color: #10b981; font-size: 0.8rem; margin-top: 4px; }
+
+.method-card { background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 12px; }
+.method-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; margin-bottom: 6px; }
+.method-result { font-size: 0.9rem; color: #e2e8f0; margin-bottom: 4px; }
+.method-formula { font-family: monospace; font-size: 0.7rem; color: #64748b; word-break: break-all; }
+
+.pedagogy-box { background: rgba(0,0,0,0.15); border-radius: 6px; padding: 10px; color: #94a3b8; line-height: 1.6; }
+</style>
+
+<!-- ═══════════════════════════════════════════════════════════
+     JAVASCRIPT — PLOTLY + INTERACTIONS
+═══════════════════════════════════════════════════════════ -->
+<script>
+(function() {
+
+  const mc   = {{ mc | tojson | safe }};
+  const DARK = { paper: 'rgba(0,0,0,0)', plot: 'rgba(0,0,0,0.2)',
+                 grid: 'rgba(255,255,255,0.05)', tick: '#94a3b8' };
+
+  function baseLayout(xTitle, yTitle, extra={}) {
+    return Object.assign({
+      margin: { t:25, b:40, l:50, r:15 },
+      paper_bgcolor: DARK.paper, plot_bgcolor: DARK.plot,
+      font: { color: '#f8fafc', size: 11 },
+      xaxis: { title: xTitle, gridcolor: DARK.grid, color: DARK.tick, zeroline: false },
+      yaxis: { title: yTitle, gridcolor: DARK.grid, color: DARK.tick, zeroline: false },
+      legend: { bgcolor: 'rgba(0,0,0,0.4)', font: { size: 9 } },
+    }, extra);
+  }
+
+  // ── 1. McCABE-THIELE ──────────────────────────────────────
+  const xyPts    = mc.xy_curve || [];
+  const stepsXY  = mc.stages_graphics || [];
+
+  const traceEq = {
+    x: xyPts.map(d=>d.x), y: xyPts.map(d=>d.y),
+    mode:'lines', name:'Équilibre y*=f(x)',
+    line: { color:'#3b82f6', width:2.5 }
+  };
+  const traceDiag = {
+    x:[0,1], y:[0,1], mode:'lines', name:'y = x',
+    line:{ color:'#475569', dash:'dash', width:1.5 }
+  };
+  const traceRect = {
+    x: mc.lines.rectifying.map(d=>d.x), y: mc.lines.rectifying.map(d=>d.y),
+    mode:'lines', name:'Rectification',
+    line:{ color:'#10b981', width:2 }
+  };
+  const traceStrip = {
+    x: mc.lines.stripping.map(d=>d.x), y: mc.lines.stripping.map(d=>d.y),
+    mode:'lines', name:'Épuisement',
+    line:{ color:'#f59e0b', width:2 }
+  };
+  const traceQL = {
+    x: mc.lines.q_line.map(d=>d.x), y: mc.lines.q_line.map(d=>d.y),
+    mode:'lines', name:'q-line',
+    line:{ color:'#ef4444', width:1.8, dash:'dot' }
+  };
+  const traceSteps = {
+    x: stepsXY.map(d=>d.x), y: stepsXY.map(d=>d.y),
+    mode:'lines+markers', name:'Étages (N=' + mc.N_steps + ')',
+    line:{ color:'#a855f7', width:1.8 },
+    marker:{ color:'#eab308', size:4 }
+  };
+  // Points xD, xF, xB
+  const tracePoints = {
+    x: [mc.mass_balance.xD, mc.mass_balance.xF, mc.mass_balance.xB],
+    y: [mc.mass_balance.xD, mc.mass_balance.xF, mc.mass_balance.xB],
+    mode:'markers+text',
+    text:['xD='+mc.mass_balance.xD, 'xF='+mc.mass_balance.xF, 'xB='+mc.mass_balance.xB],
+    textposition:['top right','top center','bottom left'],
+    marker:{ color:['#10b981','#f59e0b','#ef4444'], size:9, symbol:'circle' },
+    showlegend: false
+  };
+
+  Plotly.newPlot('dist-plotly-mccabe',
+    [traceEq, traceDiag, traceRect, traceStrip, traceQL, traceSteps, tracePoints],
+    baseLayout('x (fraction molaire)', 'y (fraction molaire)', {
+      xaxis: { range:[0,1], gridcolor:DARK.grid, color:DARK.tick, zeroline:false },
+      yaxis: { range:[0,1], gridcolor:DARK.grid, color:DARK.tick, zeroline:false },
+    }),
+    { responsive:true, displayModeBar:true,
+      modeBarButtonsToAdd:['downloadImage'],
+      modeBarButtonsToRemove:['lasso2d','select2d'] }
+  );
+
+  // ── 2. PROFIL TEMPÉRATURE ─────────────────────────────────
+  const stages = mc.profile || [];
+  Plotly.newPlot('dist-plotly-temp', [{
+    x: stages.map(s=>s.stage),
+    y: stages.map(s=>s.temp),
+    mode:'lines+markers', name:'T (°C)',
+    line:{ color:'#f87171', width:2.5 },
+    marker:{ color:'#ef4444', size:6 },
+    fill:'tozeroy', fillcolor:'rgba(239,68,68,0.06)'
+  }],
+  baseLayout('Plateau (haut → bas)', 'Température (°C)'),
+  { responsive:true });
+
+  // ── 3. PROFIL COMPOSITION ─────────────────────────────────
+  Plotly.newPlot('dist-plotly-comp', [
+    { x: stages.map(s=>s.stage), y: stages.map(s=>s.x),
+      mode:'lines+markers', name:'x liquide',
+      line:{ color:'#60a5fa', width:2 }, marker:{ size:5 } },
+    { x: stages.map(s=>s.stage), y: stages.map(s=>s.y),
+      mode:'lines+markers', name:'y vapeur',
+      line:{ color:'#34d980', width:2 }, marker:{ size:5 } },
+  ],
+  baseLayout('Plateau (haut → bas)', 'Fraction molaire',
+    { yaxis: { range:[0,1], gridcolor:DARK.grid, color:DARK.tick } }),
+  { responsive:true });
+
+  // ── 4. DÉBITS INTERNES ────────────────────────────────────
+  Plotly.newPlot('dist-plotly-flows', [
+    { x: stages.map(s=>s.stage), y: stages.map(s=>s.L),
+      mode:'lines+markers', name:'Liquide L (kmol/h)',
+      line:{ color:'#60a5fa', width:2 }, marker:{ size:4 } },
+    { x: stages.map(s=>s.stage), y: stages.map(s=>s.V),
+      mode:'lines+markers', name:'Vapeur V (kmol/h)',
+      line:{ color:'#f87171', width:2 }, marker:{ size:4 } },
+  ],
+  baseLayout('Plateau', 'Débit (kmol/h)'),
+  { responsive:true });
+
+  // ── 5. ÉNERGIE (donut) ───────────────────────────────────
+  Plotly.newPlot('dist-plotly-energy', [{
+    type:'pie',
+    labels:['Condenseur QC', 'Rebouilleur QR'],
+    values:[mc.energy.Q_condenser, mc.energy.Q_reboiler],
+    marker:{ colors:['#3b82f6','#ef4444'],
+             line:{ color:'rgba(255,255,255,0.15)', width:1 } },
+    hole:0.45,
+    textfont:{ color:'#f8fafc', size:11 },
+  }],
+  { margin:{t:20,b:20,l:20,r:20},
+    paper_bgcolor:'rgba(0,0,0,0)', showlegend:true,
+    legend:{ font:{ color:'#94a3b8', size:9 } },
+    annotations:[{ text: mc.energy.Q_total + ' kW',
+                   x:0.5, y:0.5, showarrow:false,
+                   font:{ size:13, color:'#f8fafc' } }]
+  }, { responsive:true });
+
+  // ── INTERACTIVITÉ PLATEAU ─────────────────────────────────
+  window.showPlate = function(n, temp, x, y, L, V, sect) {
+    const box = document.getElementById('plate-info-box');
+    if (!box) return;
+    const sectColor = sect === 'Rectification' ? '#60a5fa' : '#f59e0b';
+    box.innerHTML = `
+      <p style="margin:0 0 6px 0; color:#10b981; font-weight:bold; font-size:0.82rem;
+                border-bottom:1px solid rgba(16,185,129,0.2); padding-bottom:3px;">
+        📊 PLATEAU N°${n}${n === ${mc.feed_stage} ? ' ← ALIMENTATION' : ''}
+      </p>
+      <div style="display:flex; flex-direction:column; gap:4px; font-family:monospace; font-size:0.78rem;">
+        <div><span style="color:#94a3b8;">Section  :</span>
+             <span style="color:${sectColor};">${sect}</span></div>
+        <div><span style="color:#94a3b8;">x liquide:</span>
+             <strong style="color:#60a5fa;">${x.toFixed(4)}</strong></div>
+        <div><span style="color:#94a3b8;">y vapeur :</span>
+             <strong style="color:#34d980;">${y.toFixed(4)}</strong></div>
+        <div><span style="color:#94a3b8;">T (°C)   :</span>
+             <strong style="color:#f87171;">${temp.toFixed(1)}</strong></div>
+        <div><span style="color:#94a3b8;">L kmol/h :</span>
+             <strong>${L.toFixed(2)}</strong></div>
+        <div><span style="color:#94a3b8;">V kmol/h :</span>
+             <strong>${V.toFixed(2)}</strong></div>
+      </div>
+    `;
+  };
+
+  // Init avec plateau alimentation
+  if (stages.length > 0) {
+    const fs = mc.feed_stage - 1;
+    const s  = stages[Math.min(fs, stages.length-1)];
+    if (s) showPlate(s.stage, s.temp||0, s.x, s.y, s.L, s.V, s.section);
+  }
+
+})();
+</script>
+
+{% endif %}{# /distillation #}

@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="glass-panel" style="max-width: 600px; margin: 0 auto; padding: 2.5rem;">
+    <h2 style="color: var(--primary); margin-bottom: 2rem; font-family: var(--font-heading);">Modifier mon Profil</h2>
+    
+    <form action="{{ url_for('profile_page') }}" method="POST">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+            <div class="form-group">
+                <label style="color: #94a3b8; font-size: 0.85rem; padding-left: 5px;">Prénom</label>
+                <input type="text" name="first_name" value="{{ user.first_name }}" required style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: #fff;">
+            </div>
+            <div class="form-group">
+                <label style="color: #94a3b8; font-size: 0.85rem; padding-left: 5px;">Nom</label>
+                <input type="text" name="last_name" value="{{ user.last_name }}" required style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: #fff;">
+            </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1.5rem;">
+            <label style="color: #94a3b8; font-size: 0.85rem; padding-left: 5px;">Adresse Email</label>
+            <input type="email" name="email" value="{{ user.email }}" required style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: #fff;">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+            <div class="form-group">
+                <label style="color: #94a3b8; font-size: 0.85rem; padding-left: 5px;">Ville / Pays</label>
+                <input type="text" name="city_country" value="{{ user.city_country }}" required style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: #fff;">
+            </div>
+            <div class="form-group">
+                <label style="color: #94a3b8; font-size: 0.85rem; padding-left: 5px;">Âge</label>
+                <input type="number" name="age" value="{{ user.age }}" required style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: #fff;">
+            </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1.5rem;">
+            <label style="color: #94a3b8; font-size: 0.85rem; padding-left: 5px;">Profession</label>
+            <select name="profession" required style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: #fff;">
+                <option value="Ingénieur" {% if user.profession == 'Ingénieur' %}selected{% endif %}>Ingénieur</option>
+                <option value="Étudiant" {% if user.profession == 'Étudiant' %}selected{% endif %}>Étudiant</option>
+                <option value="Professeur" {% if user.profession == 'Professeur' %}selected{% endif %}>Professeur / Enseignant</option>
+                <option value="Professionnel" {% if user.profession == 'Professionnel' %}selected{% endif %}>Professionnel du secteur</option>
+                <option value="Autre" {% if user.profession == 'Autre' %}selected{% endif %}>Autre</option>
+            </select>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 2rem;">
+            <label style="color: #f87171; font-size: 0.85rem; padding-left: 5px;">Nouveau mot de passe (laisser vide pour ne pas changer)</label>
+            <input type="password" name="password" placeholder="••••••••" style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid rgba(248,113,113,0.2); background: rgba(0,0,0,0.2); color: #fff;">
+        </div>
+
+        <button type="submit" class="btn-primary" style="width: 100%; font-weight: bold; background: linear-gradient(135deg, #3b82f6, #8b5cf6);">Enregistrer mes modifications</button>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="glass-panel" style="padding: 2rem; max-width: 1400px; margin: 0 auto;">
+    <h2 style="color: #f59e0b; margin-bottom: 2rem; font-family: var(--font-heading); display: flex; align-items: center; gap: 1rem;">
+        <span style="background: #f59e0b; color: #000; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">📊</span>
+        Tableau de Bord Administrateur
+    </h2>
+    
+    <!-- Summary Stats Cards -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 3rem;">
+        <div class="stat-card" style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); padding: 1.5rem; border-radius: 12px;">
+            <p style="color: #60a5fa; font-size: 0.9rem; margin-bottom: 0.5rem;">Utilisateurs Totaux</p>
+            <h3 style="font-size: 2rem; margin: 0;">{{ summary.total_users }}</h3>
+        </div>
+        <div class="stat-card" style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); padding: 1.5rem; border-radius: 12px;">
+            <p style="color: #34d399; font-size: 0.9rem; margin-bottom: 0.5rem;">Simulations Totales</p>
+            <h3 style="font-size: 2rem; margin: 0;">{{ summary.total_sims }}</h3>
+        </div>
+        <div class="stat-card" style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.2); padding: 1.5rem; border-radius: 12px;">
+            <p style="color: #fbbf24; font-size: 0.9rem; margin-bottom: 0.5rem;">Connexions Totales</p>
+            <h3 style="font-size: 2rem; margin: 0;">{{ summary.total_logins }}</h3>
+        </div>
+        <div class="stat-card" style="background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.2); padding: 1.5rem; border-radius: 12px;">
+            <p style="color: #a78bfa; font-size: 0.9rem; margin-bottom: 0.5rem;">Ingénieurs / Étudiants</p>
+            <h3 style="font-size: 1.5rem; margin: 0;">{{ summary.engineer_count }} / {{ summary.student_count }}</h3>
+        </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 2rem; margin-bottom: 3rem;">
+        
+        <!-- Detailed Users Table -->
+        <div style="background: rgba(0,0,0,0.3); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+            <h3 style="margin-bottom: 1.5rem;">Profils Utilisateurs</h3>
+            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
+                <thead style="border-bottom: 1px solid var(--glass-border); color: var(--text-muted);">
+                    <tr>
+                        <th style="padding: 0.75rem;">Nom / Pseudo</th>
+                        <th style="padding: 0.75rem;">Email / Location</th>
+                        <th style="padding: 0.75rem;">Profession</th>
+                        <th style="padding: 0.75rem;">Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <td style="padding: 1rem 0.75rem;">
+                            <div style="font-weight: 600;">{{ user.first_name }} {{ user.last_name }}</div>
+                            <div style="font-size: 0.8rem; color: #3b82f6;">@{{ user.username }}</div>
+                        </td>
+                        <td style="padding: 1rem 0.75rem;">
+                            <div>{{ user.email }}</div>
+                            <div style="font-size: 0.8rem; color: var(--text-muted);">📍 {{ user.city_country }}</div>
+                        </td>
+                        <td style="padding: 1rem 0.75rem;">
+                            <span class="prof-badge prof-{{ user.profession|lower }}">{{ user.profession }}</span>
+                        </td>
+                        <td style="padding: 1rem 0.75rem; color: var(--text-muted);">{{ user.created_at.strftime('%d/%m/%Y') }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Saved Simulations Table -->
+        <div style="background: rgba(0,0,0,0.3); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+            <h3 style="margin-bottom: 1.5rem;">Dernières Simulations</h3>
+            {% for sim in sims[:10] %}
+            <div style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <div style="font-weight: 500; font-size: 0.9rem;">{{ sim.comp1_name }} + {{ sim.comp2_name }}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">{{ sim.process_type }} • {{ sim.model_used }}</div>
+                </div>
+                <div style="font-size: 0.75rem; color: #3b82f6;">#{{ sim.user_id }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Usage Stats -->
+    <div style="background: rgba(0,0,0,0.3); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+        <h3 style="margin-bottom: 1.5rem;">Logs de Connexion & Géolocalisation</h3>
+        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;">
+            <thead style="background: rgba(255,255,255,0.02); color: var(--text-muted);">
+                <tr>
+                    <th style="padding: 0.75rem;">Adresse IP</th>
+                    <th style="padding: 0.75rem;">Pays Détecté</th>
+                    <th style="padding: 0.75rem;">Heure de Login</th>
+                    <th style="padding: 0.75rem;">Durée estimée</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for stat in stats[:20] %}
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+                    <td style="padding: 0.75rem; font-family: monospace;">{{ stat.ip_address }}</td>
+                    <td style="padding: 0.75rem;">🌍 {{ stat.country }}</td>
+                    <td style="padding: 0.75rem;">{{ stat.login_time.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                    <td style="padding: 0.75rem; color: #10b981;">{{ "%.1f"|format(stat.session_duration_minutes) }} min</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<style>
+    .prof-badge { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+    .prof-ingénieur { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .prof-étudiant { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+    .prof-professeur { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .prof-autre { background: rgba(148, 163, 184, 0.2); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.3); }
+</style>
+{% endblock %}

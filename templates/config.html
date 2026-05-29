@@ -1,0 +1,739 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="app-container" style="display: flex; justify-content: center;">
+    <aside class="sidebar glass-panel" style="width: min(1040px, 100%);">
+        <h2 style="margin-bottom: 2rem; color: var(--primary);">Configuration ProcessInsight 4.0</h2>
+        
+        <form id="control-form" class="controls" action="{{ url_for('simulate_page') }}" method="POST">
+            
+            <fieldset style="border: 1px solid var(--glass-border); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                <legend style="color: var(--accent); font-weight: bold;">Type de Procédé & Analyse</legend>
+                
+                <div class="control-group" style="margin-bottom: 1rem;">
+                    <label>Procédés Sélectionnés</label>
+                    <p style="font-size:0.85rem; color: var(--accent); margin: 0 0 5px 0; line-height:1.2; font-weight: bold;">
+                        {% for p in selected_processes %}
+                            {{ p|title }}{% if not loop.last %}, {% endif %}
+                        {% endfor %}
+                    </p>
+                    {% for proc in selected_processes %}
+                        <input type="hidden" name="process_types" value="{{ proc }}">
+                    {% endfor %}
+                </div>
+
+                <div class="control-group">
+                    <label>Mode Thermo (Analyse)</label>
+                    <p style="font-size:0.75rem; color:#94a3b8; margin: 0 0 5px 0; line-height:1.2;">Méthode de calcul des équilibres (Raoult, NRTL, PR).</p>
+                    <select id="mode_compare" name="mode_compare">
+                        <option value="auto">Auto-Sélection ProcessInsight</option>
+                        <option value="compare">Comparateur Global (Raoult / PR / UNIFAC)</option>
+                    </select>
+                </div>
+            </fieldset>
+
+            {% set has_extraction = 'extraction' in selected_processes %}
+            {% set has_absorption = 'absorption' in selected_processes %}
+            {% set has_distillation = 'distillation' in selected_processes %}
+            {% set has_flash = 'flash' in selected_processes %}
+            {% set has_pump = 'pump' in selected_processes %}
+            {% set has_compressor = 'compressor' in selected_processes %}
+            {% set has_hex = 'heat_exchanger' in selected_processes %}
+            {% set needs_vle = has_distillation or has_flash %}
+
+            <fieldset style="border: 1px solid var(--glass-border); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                <legend style="color: var(--primary); font-weight: bold;">Composants du procédé</legend>
+                <p style="font-size:0.75rem; color:#94a3b8; margin:0 0 12px 0;">
+                    Chaque opération utilise les champs dédiés de sa section ci-dessous (préfixe <code>dist_</code>, <code>ext_</code>, <code>abs_</code>, etc.).
+                </p>
+
+                {% if not (selected_processes|length == 1 and 'absorption' in selected_processes) %}
+                <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                    <div class="control-group" style="flex:1;">
+                        <label id="label_comp1">Composant 1</label>
+                        <p id="hint_comp1" style="font-size:0.75rem; color:#94a3b8; margin: 0 0 5px 0; line-height:1.2;">
+                            {% if has_absorption and not has_extraction and not has_distillation %}Soluté dans le gaz (espèce absorbée).{% elif has_extraction and not has_absorption %}Soluté à extraire (phase charge F).{% else %}Espèce principale (soluté / volatil selon procédé).{% endif %}
+                        </p>
+                        <select id="comp1" name="comp1_id" required>
+                            {% for c in components %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="control-group" style="flex:1;">
+                        <label id="label_comp2">Composant 2</label>
+                        <p id="hint_comp2" style="font-size:0.75rem; color:#94a3b8; margin: 0 0 5px 0; line-height:1.2;">
+                            {% if has_absorption and not has_extraction and not has_distillation %}Liquide absorbant (solvant de lavage).{% elif has_extraction and not has_absorption %}Diluant de la charge F.{% else %}Seconde espèce (diluant / absorbant / lourd).{% endif %}
+                        </p>
+                        <select id="comp2" name="comp2_id" required>
+                            {% for c in components %}<option value="{{ c.id }}" {% if loop.index == 2 %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+                        </select>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if has_extraction %}
+                <fieldset id="solvent-fieldset" style="border: 1px solid var(--accent); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                    <legend style="color: var(--accent); font-weight: bold;">Solvant d'extraction L-L</legend>
+                    <p style="font-size:0.75rem; color:#94a3b8; margin: 0 0 10px 0;">
+                        Sélection vérifiée par paramètres de Hansen (affinité soluté–solvant, sélectivité vis-à-vis du diluant, K estimé).
+                    </p>
+                    <div style="display:flex; gap:1.5rem; margin-bottom: 0.75rem; flex-wrap: wrap;">
+                        <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                            <input type="radio" name="ext_solvent_mode" value="manual" checked onchange="toggleSolventMode()">
+                            <span>Choix manuel</span>
+                        </label>
+                        <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                            <input type="radio" name="ext_solvent_mode" value="auto" onchange="toggleSolventMode()">
+                            <span>Sélection automatique (scientifique)</span>
+                        </label>
+                    </div>
+                    <div id="solvent-manual-wrap" class="control-group" style="margin-bottom: 0.5rem;">
+                        <label for="comp3">Solvant</label>
+                        <div style="display: flex; gap: 10px;">
+                            <select id="comp3" name="comp3_id" style="flex: 1;" required>
+                                <option value="">-- Choisir un solvant --</option>
+                                {% for s in solvents|default([]) %}
+                                <option value="{{ s.id }}">{{ s.name }}{% if s.solvent_class %} ({{ s.solvent_class }}){% endif %}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="button" id="btn_suggest" class="btn-primary" style="padding: 5px 10px; font-size: 0.8rem; background: var(--accent);" onclick="suggestSolvent()">Comparer</button>
+                        </div>
+                    </div>
+                    <div id="solvent-auto-hint" style="display:none; padding: 0.75rem; background: rgba(59,130,246,0.1); border-radius: 6px; font-size: 0.85rem; color: #93c5fd;">
+                        Le meilleur solvant sera choisi à la simulation selon Hansen, polarité et K estimé pour le couple soluté / diluant sélectionné.
+                    </div>
+                    <div id="solvent-preview" style="display:none; margin-top: 0.75rem; padding: 0.75rem; border-radius: 6px; background: rgba(15,23,42,0.5); font-size: 0.8rem; line-height: 1.4;"></div>
+                </fieldset>
+                {% elif not has_absorption %}
+                <div class="control-group" style="margin-bottom: 1rem;">
+                    <label id="label_comp3">Composant 3 (Optionnel, Mode Ternaire)</label>
+                    <p style="font-size:0.75rem; color:#94a3b8; margin: 0 0 5px 0; line-height:1.2;">Agent matériel supplémentaire (Solvant d'extraction).</p>
+                    <div style="display: flex; gap: 10px;">
+                        <select id="comp3" name="comp3_id" style="flex: 1;">
+                            <option value="">-- Aucun (Mélange Binaire) --</option>
+                            {% for c in components %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+                        </select>
+                        <button type="button" id="btn_suggest" class="btn-primary" style="padding: 5px 10px; font-size: 0.8rem; display: none; background: var(--accent);" onclick="suggestSolvent()">Suggérer</button>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if needs_vle %}
+                <fieldset style="border:1px dashed var(--glass-border); padding:0.75rem; border-radius:6px; margin-bottom:1rem;">
+                    <legend style="font-size:0.8rem; color:#93c5fd;">Thermodynamique VLE (distillation / flash)</legend>
+                    <div class="control-group" style="margin-bottom: 0.75rem;">
+                        <label>Température (°C) : <span id="temp-val">80</span></label>
+                        <input type="range" id="temperature" name="temperature" min="10" max="250" value="80">
+                    </div>
+                    <div class="control-group" style="margin-bottom: 0.75rem;">
+                        <label>Pression (kPa) : <span id="pres-val">101.3</span></label>
+                        <input type="range" id="pressure" name="pressure" min="10" max="3000" value="101.3" step="10">
+                    </div>
+                    <div class="control-group" id="x1-group">
+                        <label>Fraction x<sub>1</sub> alimentation : <span id="x1-val">0.5</span></label>
+                        <input type="range" id="x1_frac" name="x1" min="0.01" max="0.99" step="0.01" value="0.5">
+                    </div>
+                </fieldset>
+                {% else %}
+                <input type="hidden" name="temperature" value="80">
+                <input type="hidden" name="pressure" value="101.325">
+                <input type="hidden" name="x1" value="0.5">
+                {% endif %}
+
+                <div class="control-group" id="x2_group" style="display: none; margin-top: 1rem;">
+                    <label>Fraction molaire initiale X2 : <span id="x2-val">0.25</span></label>
+                    <p style="font-size:0.75rem; color:#94a3b8; margin: 0 0 5px 0; line-height:1.2;">Concentration du Composant 2 dans la charge d'alimentation.</p>
+                    <input type="range" id="x2_frac" name="x2" min="0.01" max="0.99" step="0.01" value="0.25">
+                    <div style="margin-top: 0.5rem; color: var(--accent); font-weight: bold;">
+                        Fraction X3 (Calculée) : <span id="x3-val">0.25</span>
+                    </div>
+                </div>
+            </fieldset>
+
+            <div class="stacked-config-container">
+                
+                {% if 'distillation' in selected_processes %}
+                <div class="config-section-card" data-process="distillation">
+                    <h3 style="color: var(--accent); margin-bottom: 1rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 0.5rem;">🔥 Distillation — entrées <code>dist_*</code></h3>
+                    <p style="font-size:0.7rem; color:#64748b; margin:0 0 10px 0;">Composants : comp1 = volatil · comp2 = lourd · x<sub>1</sub> = fraction alimentation (bloc VLE).</p>
+                    <div style="display:flex; gap:10px; margin-bottom:10px;">
+                        <div style="flex:1">
+                            <label>x<sub>D</sub> :</label>
+                            <p style="font-size:0.75rem; color:#94a3b8; margin: 0 0 5px 0; line-height:1.2;">Pureté souhaitée au distillat (Tête).</p>
+                            <input type="number" step="0.01" name="dist_x_d" value="0.95">
+                        </div>
+                        <div style="flex:1">
+                            <label>x<sub>B</sub> :</label>
+                            <p style="font-size:0.75rem; color:#94a3b8; margin: 0 0 5px 0; line-height:1.2;">Pureté souhaitée au résidu (Fond).</p>
+                            <input type="number" step="0.01" name="dist_x_b" value="0.05">
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:10px; margin-bottom:10px;">
+                        <div style="flex:1">
+                            <label>Débit Charge F (kmol/h):</label>
+                            <p style="font-size:0.75rem; color:#94a3b8; margin: 0 0 5px 0; line-height:1.2;">Quantité d'alimentation à séparer.</p>
+                            <input type="number" step="10" name="dist_flow_f" value="100">
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:10px; margin-bottom:10px;">
+                        <div style="flex:1">
+                            <label>Reflux R :</label>
+                            <p style="font-size:0.75rem; color:#94a3b8; margin: 0 0 5px 0; line-height:1.2;">Ratio L/D (Liquide renvoyé / Distillat).</p>
+                            <input type="number" step="0.1" name="dist_reflux" value="1.5">
+                        </div>
+                        <div style="flex:1">
+                            <label>Efficacité plateaux η :</label>
+                            <p style="font-size:0.75rem; color:#94a3b8; margin: 0 0 5px 0; line-height:1.2;">Rendement Murphree (0.1 à 1).</p>
+                            <input type="number" step="0.05" min="0.1" max="1" name="dist_tray_efficiency" value="0.75">
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:10px; margin-bottom:10px;">
+                        <div style="flex:1">
+                            <label>Modèle VLE colonne :</label>
+                            <select name="dist_thermo_model" style="width:100%;">
+                                <option value="NRTL" selected>NRTL (réel)</option>
+                                <option value="Raoult">Raoult (idéal)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.02); padding:10px; border-radius:6px; border:1px solid var(--glass-border);">
+                        <label style="display:block; margin-bottom:6px;">Qualité d'alimentation (q)</label>
+                        <div style="display:flex; gap:12px; margin-bottom:8px; font-size:0.85rem;">
+                            <label><input type="radio" name="dist_q_mode" value="state" checked onclick="toggleDistQMode('state')"> État thermique</label>
+                            <label><input type="radio" name="dist_q_mode" value="direct" onclick="toggleDistQMode('direct')"> Valeur directe</label>
+                        </div>
+                        <div id="dist-q-state">
+                            <select name="dist_q_state" id="dist_q_state" onchange="toggleDistQFrac()" style="width:100%;">
+                                <option value="liquid_sat" selected>Liquide saturé (q = 1)</option>
+                                <option value="liquid_sub">Liquide sous-refroidi (q &gt; 1)</option>
+                                <option value="liq_vap">Mélange L-V (0 &lt; q &lt; 1)</option>
+                                <option value="vap_sat">Vapeur saturée (q = 0)</option>
+                                <option value="vap_super">Vapeur surchauffée (q &lt; 0)</option>
+                            </select>
+                            <div id="dist-q-frac-wrap" style="display:none; margin-top:8px;">
+                                <label style="font-size:0.75rem;">Fraction liquide : <span id="dist-q-frac-val">0.5</span></label>
+                                <input type="range" name="dist_q_liq_frac" min="0.05" max="0.95" step="0.05" value="0.5"
+                                    oninput="document.getElementById('dist-q-frac-val').textContent=this.value">
+                            </div>
+                        </div>
+                        <div id="dist-q-direct" style="display:none;">
+                            <input type="number" step="0.1" name="dist_feed_q" value="1.0" style="width:100%;">
+                            <p style="font-size:0.75rem; color:#94a3b8; margin:4px 0 0;">1 = liquide saturé, 0 = vapeur saturée.</p>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if 'flash' in selected_processes %}
+                <div class="config-section-card" data-process="flash">
+                    <h3 style="color: var(--accent); margin-bottom: 1rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 0.5rem;">⚡ Flash — entrées <code>flash_*</code></h3>
+                    <p style="font-size:0.7rem; color:#64748b; margin:0 0 10px 0;">T et P du bloc VLE · ψ = fraction vaporisée cible.</p>
+                    <div style="display:flex; gap:10px; margin-bottom:10px;">
+                        <div style="flex:1">
+                            <label>Taux de vaporisation cible (&psi;) :</label>
+                            <p style="font-size:0.75rem; color:#94a3b8; margin: 0 0 5px 0; line-height:1.2;">Fraction vaporisée souhaitée (0 à 1).</p>
+                            <input type="number" step="0.05" min="0.01" max="0.99" name="flash_psi" value="0.5">
+                        </div>
+                        <div style="flex:1">
+                            <label>Perte de charge (kPa) :</label>
+                            <p style="font-size:0.75rem; color:#94a3b8; margin: 0 0 5px 0; line-height:1.2;">Chute de pression (DP).</p>
+                            <input type="number" step="1" name="flash_dp" value="0.0">
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if 'pump' in selected_processes %}
+                <div class="config-section-card" data-process="pump">
+                    <h3 style="color: var(--accent); margin-bottom: 1rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 0.5rem;">⚙️ Pompe — entrées <code>pump_*</code></h3>
+                    <p style="font-size:0.7rem; color:#64748b; margin:0 0 10px 0;">comp1 = fluide pompé (référence).</p>
+                    <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+                        <div style="flex:1; min-width:120px">
+                            <label>Débit (m³/h)</label>
+                            <input type="number" step="1" name="pump_flow_rate" value="100">
+                        </div>
+                        <div style="flex:1; min-width:120px">
+                            <label>P<sub>in</sub> (kPa)</label>
+                            <input type="number" step="1" name="pump_p_in" value="101.325">
+                        </div>
+                        <div style="flex:1; min-width:120px">
+                            <label>P<sub>out</sub> (kPa)</label>
+                            <input type="number" step="1" name="pump_p_out" value="500">
+                        </div>
+                        <div style="flex:1; min-width:120px">
+                            <label>η</label>
+                            <input type="number" step="0.05" name="pump_efficiency" value="0.75">
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if 'compressor' in selected_processes %}
+                <div class="config-section-card" data-process="compressor">
+                    <h3 style="color: var(--accent); margin-bottom: 1rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 0.5rem;">💨 Compresseur — entrées <code>comp_*</code></h3>
+                    <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+                        <div style="flex:1; min-width:120px">
+                            <label>Débit (m³/h)</label>
+                            <input type="number" step="1" name="comp_flow_rate" value="100">
+                        </div>
+                        <div style="flex:1; min-width:120px">
+                            <label>T<sub>in</sub> (°C)</label>
+                            <input type="number" step="1" name="comp_T_in" value="25">
+                        </div>
+                        <div style="flex:1; min-width:120px">
+                            <label>P<sub>in</sub> (kPa)</label>
+                            <input type="number" step="1" name="comp_p_in" value="101.325">
+                        </div>
+                        <div style="flex:1; min-width:120px">
+                            <label>P<sub>out</sub> (kPa)</label>
+                            <input type="number" step="1" name="comp_p_out" value="1500">
+                        </div>
+                        <div style="flex:1; min-width:120px">
+                            <label>η</label>
+                            <input type="number" step="0.05" name="comp_efficiency" value="0.75">
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if 'extraction' in selected_processes %}
+                <div class="config-section-card" data-process="extraction">
+                    <h3 style="color: var(--accent); margin-bottom: 1rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 0.5rem;">🧪 Extraction L-L — entrées <code>ext_*</code></h3>
+                    <p style="font-size:0.8rem; color:#94a3b8; margin: 0 0 12px 0;">
+                        Composant 1 = <strong>soluté</strong> à extraire · Composant 2 = <strong>diluant</strong> de la charge · Solvant = phase d'extraction (ci-dessus).
+                    </p>
+                    <div style="display:flex; gap:10px; margin-bottom:10px;">
+                        <div style="flex:1">
+                            <label>x<sub>F</sub> (soluté charge) :</label>
+                            <p style="font-size:0.75rem; color:#94a3b8; margin: 0 0 5px 0; line-height:1.2;">Fraction massique du soluté dans l'alimentation F.</p>
+                            <input type="number" step="0.01" min="0" max="1" name="ext_xf" value="0.15">
+                        </div>
+                        <div style="flex:1">
+                            <label>x<sub>R</sub> (raffinat cible) :</label>
+                            <p style="font-size:0.75rem; color:#94a3b8; margin: 0 0 5px 0; line-height:1.2;">Pureté résiduelle souhaitée en phase raffinat.</p>
+                            <input type="number" step="0.01" min="0" max="1" name="ext_xn" value="0.02">
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:10px; margin-bottom:10px;">
+                        <div style="flex:1">
+                            <label>Débit charge F (kg/h) :</label>
+                            <p style="font-size:0.75rem; color:#94a3b8; margin: 0 0 5px 0; line-height:1.2;">Flux de la phase à extraire.</p>
+                            <input type="number" step="10" name="ext_flow_l" value="100">
+                        </div>
+                        <div style="flex:1">
+                            <label>Débit solvant S (kg/h) :</label>
+                            <p style="font-size:0.75rem; color:#94a3b8; margin: 0 0 5px 0; line-height:1.2;">Flux du solvant d'extraction (contre-courant).</p>
+                            <input type="number" step="10" name="ext_flow_v" value="150">
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:10px; margin-bottom:10px;">
+                        <div style="flex:1">
+                            <label>y<sub>S</sub> (soluté dans solvant entrant) :</label>
+                            <p style="font-size:0.75rem; color:#94a3b8; margin: 0 0 5px 0; line-height:1.2;">0 si solvant pur.</p>
+                            <input type="number" step="0.01" min="0" max="1" name="ext_ys" value="0.0">
+                        </div>
+                        <div style="flex:1">
+                            <label>Coefficient de partage K :</label>
+                            <p style="font-size:0.75rem; color:#94a3b8; margin: 0 0 5px 0; line-height:1.2;">0 = estimation automatique (thermo). y = K·x à l'équilibre.</p>
+                            <input type="number" step="0.1" min="0" name="ext_K" value="0">
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:10px;">
+                        <div style="flex:1">
+                            <label>Configuration procédé :</label>
+                            <p style="font-size:0.75rem; color:#94a3b8; margin: 0 0 5px 0; line-height:1.2;">Type d'écoulement des phases.</p>
+                            <select name="ext_process_type" style="width:100%;">
+                                <option value="counter_current" selected>Contre-courant (colonne / multi-étages)</option>
+                                <option value="simple_stage">Simple étage (mixer-settler)</option>
+                                <option value="cocurrent">Co-courant</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if 'absorption' in selected_processes %}
+                <div class="config-section-card" data-process="absorption">
+                    <h3 style="color: var(--accent); margin-bottom: 1rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 0.5rem;">🫧 Absorption G-L — entrées <code>abs_*</code></h3>
+                    <p style="font-size:0.75rem; color:#94a3b8; margin:0 0 12px 0;">Henry y*=mx · McCabe-Thiele (plateaux) · HTU-NTU (garnissage) · bilans & transfert de matière.</p>
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:10px; margin-bottom:12px;">
+                        <div>
+                            <label>Type de colonne</label>
+                            <input type="hidden" name="abs_column_type" value="packed">
+                            <div style="padding:8px 10px; background:rgba(255,255,255,0.02); border-radius:6px;">Garnissage (colonne à garnissage uniquement)</div>
+                        </div>
+                        <div>
+                            <label>Absorption</label>
+                            <select name="abs_type" style="width:100%;">
+                                <option value="physical" selected>Physique</option>
+                                <option value="chemical">Chimique</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label>Écoulement</label>
+                            <select name="abs_flow_direction" style="width:100%;">
+                                <option value="counter_current" selected>Contre-courant</option>
+                                <option value="cocurrent">Co-courant</option>
+                            </select>
+                        </div>
+                    </div>
+                    <h4 style="color:#93c5fd; font-size:0.85rem; margin:0 0 8px 0;">Préréglages rapides</h4>
+                    <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap; align-items:end;">
+                        <div style="flex:1; min-width:180px;">
+                            <label>Gaz cible</label>
+                            <select id="abs_gas_preset" name="abs_gas_preset" style="width:100%;">
+                                <option value="custom">-- Personnalisé --</option>
+                                <option value="CO2">CO₂</option>
+                                <option value="H2S">H₂S</option>
+                                <option value="SO2">SO₂</option>
+                                <option value="NH3">NH₃</option>
+                                <option value="NOx">NOx</option>
+                            </select>
+                        </div>
+                        <div style="flex:1; min-width:180px;">
+                            <label>Liquide absorbant</label>
+                            <select id="abs_liq_preset" name="abs_liq_preset" style="width:100%;">
+                                <option value="custom">-- Personnalisé --</option>
+                                <option value="water">Eau</option>
+                                <option value="MEA">MEA (aqueux)</option>
+                                <option value="NaOH">NaOH (aqueux)</option>
+                                <option value="ethylene_glycol">Glycol</option>
+                                <option value="ethanol">Ethanol</option>
+                            </select>
+                        </div>
+                        <div style="flex:1; min-width:120px; display:flex; flex-direction:column; justify-content:flex-end;">
+                            <button type="button" class="btn-primary" style="padding:6px 10px;" onclick="applyAbsPresets()">Appliquer préréglages</button>
+                            <small style="font-size:0.75rem; color:#94a3b8; margin-top:6px;">Les valeurs de gaz/liquide sont auto-remplies quand vous choisissez un préréglage.</small>
+                        </div>
+                        <div style="flex:1; min-width:120px;">
+                            <label>Animation colonne</label>
+                            <div style="padding:6px 0;"><video id="abs_demo_video" controls style="width:100%; max-height:90px; background:#000; border-radius:6px;"><source src="/static/absorption_demo.mp4" type="video/mp4">Votre navigateur ne supporte pas la vidéo.</video></div>
+                        </div>
+                    </div>
+                    <h4 style="color:#93c5fd; font-size:0.85rem; margin:0 0 8px 0;">Gaz entrant</h4>
+                    <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+                        <div style="flex:1; min-width:120px;">
+                            <label>Débit gaz (mol/h)</label>
+                            <input type="number" step="10" name="abs_flow_g" value="1000">
+                        </div>
+                        <div style="flex:1; min-width:120px;">
+                            <label>Température du gaz (°C)</label>
+                            <input type="number" step="1" name="abs_T_gas" value="40">
+                        </div>
+                        <div style="flex:1; min-width:120px;">
+                            <label>Fraction molaire gazeuse entrante y<sub>in</sub></label>
+                            <input type="number" step="0.01" name="abs_y_in" value="0.05">
+                        </div>
+                        <div style="flex:1; min-width:120px;">
+                            <label>Fraction molaire gazeuse sortie cible y<sub>out</sub></label>
+                            <input type="number" step="0.001" name="abs_y_out" value="0.005">
+                        </div>
+                    </div>
+                    <h4 style="color:#93c5fd; font-size:0.85rem; margin:0 0 8px 0;">Liquide absorbant</h4>
+                    <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+                        <div style="flex:1; min-width:120px;">
+                            <label>Débit liquide (mol/h)</label>
+                            <input type="number" step="10" name="abs_flow_l" value="1500">
+                        </div>
+                        <div style="flex:1; min-width:120px;">
+                            <label>Température liquide (°C)</label>
+                            <input type="number" step="1" name="abs_T_liq" value="25">
+                        </div>
+                        <div style="flex:1; min-width:120px;">
+                            <label>Fraction molaire entrante liquide x<sub>in</sub></label>
+                            <input type="number" step="0.001" name="abs_x_in" value="0.0">
+                        </div>
+                        <div style="flex:1; min-width:120px;">
+                            <label>Constante déquilibre de Henry m (y* = m·x)</label>
+                            <input type="number" step="0.1" name="abs_m" value="0" placeholder="auto Henry">
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <div style="flex:1; min-width:100px;">
+                            <label>Densité du liquide (kg/m³)</label>
+                            <input type="number" step="10" name="abs_rho_l" value="1000">
+                        </div>
+                        <div style="flex:1; min-width:100px;">
+                            <label>Viscosité du liquide (Pa·s)</label>
+                            <input type="number" step="0.0001" name="abs_mu_l" value="0.001">
+                        </div>
+                        <div style="flex:1; min-width:100px;">
+                            <label>Masse molaire du liquide (g/mol)</label>
+                            <input type="number" step="0.1" name="abs_MW_l" value="18">
+                        </div>
+                        <div style="flex:1; min-width:100px;">
+                            <label>Diamètre (m)</label>
+                            <input type="number" step="0.05" name="abs_column_d" value="0.6">
+                        </div>
+                        <div style="flex:1; min-width:100px;">
+                            <label>HETP / HTU de référence (m)</label>
+                            <input type="number" step="0.1" name="abs_hetp" value="0.5">
+                        </div>
+                        <div style="flex:1; min-width:100px;">
+                            <label>Efficacité plateaux</label>
+                            <input type="number" step="0.05" name="abs_tray_eff" value="0.65" min="0.1" max="1">
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if 'heat_exchanger' in selected_processes %}
+                <div class="config-section-card" data-process="heat_exchanger">
+                    <h3 style="color: var(--accent); margin-bottom: 1rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 0.5rem;">🌡️ Échangeur — entrées <code>hex_*</code></h3>
+                    <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+                        <div style="flex:1; min-width:120px">
+                            <label>T<sub>in</sub> chaud (°C)</label>
+                            <input type="number" step="1" name="hex_t_in_hot" value="150">
+                        </div>
+                        <div style="flex:1; min-width:120px">
+                            <label>T<sub>out</sub> chaud (°C)</label>
+                            <input type="number" step="1" name="hex_t_out_hot" value="80">
+                        </div>
+                        <div style="flex:1; min-width:120px">
+                            <label>T<sub>in</sub> froid (°C)</label>
+                            <input type="number" step="1" name="hex_t_in_cold" value="20">
+                        </div>
+                        <div style="flex:1; min-width:120px">
+                            <label>T<sub>out</sub> froid (°C)</label>
+                            <input type="number" step="1" name="hex_t_out_cold" value="90">
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <div style="flex:1; min-width:120px">
+                            <label>Débit chaud (kg/h)</label>
+                            <input type="number" step="10" name="hex_flow_rate" value="1000">
+                        </div>
+                        <div style="flex:1; min-width:120px">
+                            <label>Cp (kJ/kg·K)</label>
+                            <input type="number" step="0.1" name="hex_cp" value="2.0">
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <button type="submit" class="btn-primary" style="width: 100%; font-size: 1.1rem; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);">
+                Simuler le Procédé
+            </button>
+        </form>
+    </aside>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const tempEl = document.getElementById('temperature');
+    const presEl = document.getElementById('pressure');
+    if (tempEl) tempEl.addEventListener('input', e => document.getElementById('temp-val').innerText = e.target.value);
+    if (presEl) presEl.addEventListener('input', e => document.getElementById('pres-val').innerText = e.target.value);
+
+    // Component fraction logic
+    const x1Input = document.getElementById('x1_frac');
+    const x2Input = document.getElementById('x2_frac');
+    const x1Val = document.getElementById('x1-val');
+    const x2Val = document.getElementById('x2-val');
+    const x3Val = document.getElementById('x3-val');
+
+    function updateFractions(e) {
+        if (!x1Input) return;
+        let v1 = parseFloat(x1Input.value);
+        let v2 = x2Input ? parseFloat(x2Input.value) : 1 - v1;
+        
+        if (document.getElementById('comp3') && document.getElementById('comp3').value) {
+            if (v1 + v2 > 0.99) {
+                if (e && e.target === x1Input) {
+                    v2 = Math.max(0.01, 0.99 - v1);
+                    x2Input.value = v2.toFixed(2);
+                } else if (e && e.target === x2Input) {
+                    v1 = Math.max(0.01, 0.99 - v2);
+                    x1Input.value = v1.toFixed(2);
+                }
+            }
+            let v3 = 1.0 - v1 - v2;
+            if (x3Val) x3Val.innerText = Math.max(0, v3).toFixed(2);
+        } else {
+            v2 = 1.0 - v1;
+        }
+        if (x1Val) x1Val.innerText = v1.toFixed(2);
+        if (x2Val) x2Val.innerText = v2.toFixed(2);
+    }
+
+    if (x1Input) x1Input.addEventListener('input', updateFractions);
+    if (x2Input) x2Input.addEventListener('input', updateFractions);
+
+    const HAS_EXTRACTION = {{ 'true' if 'extraction' in selected_processes else 'false' }};
+
+    function toggleSolventMode() {
+        const auto = document.querySelector('input[name="ext_solvent_mode"]:checked')?.value === 'auto';
+        const manualWrap = document.getElementById('solvent-manual-wrap');
+        const autoHint = document.getElementById('solvent-auto-hint');
+        const comp3 = document.getElementById('comp3');
+        if (manualWrap) manualWrap.style.display = auto ? 'none' : 'block';
+        if (autoHint) autoHint.style.display = auto ? 'block' : 'none';
+        if (comp3) {
+            comp3.required = !auto && HAS_EXTRACTION;
+            if (auto) comp3.value = '';
+        }
+    }
+
+    function toggleX2() {
+        if (HAS_EXTRACTION) {
+            updateFractions();
+            return;
+        }
+        const comp3 = document.getElementById('comp3');
+        const x2Group = document.getElementById('x2_group');
+        if (!comp3 || !x2Group) {
+            updateFractions();
+            return;
+        }
+        if(comp3.value) {
+            x2Group.style.display = 'block';
+            const btn = document.getElementById('btn_suggest');
+            if (btn) btn.style.display = 'inline-block';
+        } else {
+            x2Group.style.display = 'none';
+        }
+        updateFractions();
+    }
+    const comp3El = document.getElementById('comp3');
+    if (comp3El) comp3El.addEventListener('change', toggleX2);
+
+    function applyAbsPresets() {
+        const g = document.getElementById('abs_gas_preset').value;
+        const l = document.getElementById('abs_liq_preset').value;
+        let m_val = 1.5; let T_g = 40; let T_l = 25; let rho = 1000; let mu = 0.001; let MW = 18;
+        if (g === 'CO2') { m_val = 0.5; }
+        else if (g === 'H2S') { m_val = 12.0; }
+        else if (g === 'SO2') { m_val = 8.0; }
+        else if (g === 'NH3') { m_val = 15.0; }
+        else if (g === 'NOx') { m_val = 0.3; }
+        if (l === 'water') { rho = 1000; mu = 0.001; MW = 18; }
+        else if (l === 'MEA') { rho = 1050; mu = 0.0012; MW = 61; }
+        else if (l === 'NaOH') { rho = 1200; mu = 0.002; MW = 40; }
+        else if (l === 'ethylene_glycol') { rho = 1110; mu = 0.015; MW = 62; }
+        else if (l === 'ethanol') { rho = 789; mu = 0.0012; MW = 46; }
+        const setByName = (name, val) => { const el = document.getElementsByName(name)[0]; if (el) el.value = val; };
+        if (g !== 'custom' || l !== 'custom') {
+            setByName('abs_m', m_val);
+            setByName('abs_T_gas', T_g);
+            setByName('abs_T_liq', T_l);
+            setByName('abs_rho_l', rho);
+            setByName('abs_mu_l', mu);
+            setByName('abs_MW_l', MW);
+        }
+    }
+
+    function renderSolventPreview(data) {
+        const box = document.getElementById('solvent-preview');
+        if (!box || !data.suggestions?.length) return;
+        let html = '<strong>Classement scientifique</strong><ul style="margin:0.5rem 0 0 1rem; padding:0;">';
+        data.suggestions.forEach((s, i) => {
+            const ok = s.scientifically_valid ? '✓' : '⚠';
+            html += `<li>${ok} <b>${s.name}</b> — score ${s.score}, K≈${s.k_estimated}, ΔH(soluté)=${s.hansen_solute_solvent}, ΔH(diluant)=${s.hansen_diluent_solvent}</li>`;
+        });
+        html += '</ul>';
+        box.innerHTML = html;
+        box.style.display = 'block';
+    }
+
+    document.getElementById('abs_gas_preset')?.addEventListener('change', applyAbsPresets);
+    document.getElementById('abs_liq_preset')?.addEventListener('change', applyAbsPresets);
+
+    async function suggestSolvent() {
+        const c1 = document.getElementById('comp1').value;
+        const c2 = document.getElementById('comp2').value;
+        const btn = document.getElementById('btn_suggest');
+        const T = document.getElementById('temperature')?.value || 25;
+        if (!btn) return;
+        btn.innerText = "Calcul...";
+        try {
+            const res = await fetch('/api/suggest_solvent', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({comp1_id: c1, comp2_id: c2, temperature: T})
+            });
+            const data = await res.json();
+            if (data.suggestions && data.suggestions.length > 0) {
+                const s = data.suggestions[0];
+                const auto = document.querySelector('input[name="ext_solvent_mode"]:checked')?.value === 'auto';
+                if (!auto && document.getElementById('comp3')) {
+                    document.getElementById('comp3').value = s.id;
+                }
+                renderSolventPreview(data);
+                const validTxt = s.scientifically_valid ? 'Validé scientifiquement' : 'Acceptable avec réserves';
+                alert(`Meilleur solvant : ${s.name} (${validTxt})\n\nScore : ${s.score}\nK estimé : ${s.k_estimated}\n\n${s.reason}`);
+            } else {
+                alert("Aucun solvant adapté trouvé dans la base.");
+            }
+        } catch (e) {
+            alert("Erreur lors de la suggestion.");
+        } finally {
+            btn.innerText = HAS_EXTRACTION ? "Comparer" : "Suggérer";
+        }
+    }
+
+    if (HAS_EXTRACTION) {
+        const l1 = document.getElementById('label_comp1');
+        const l2 = document.getElementById('label_comp2');
+        if (l1) l1.textContent = 'Soluté (Composant 1)';
+        if (l2) l2.textContent = 'Diluant / charge (Composant 2)';
+        toggleSolventMode();
+    }
+    toggleX2();
+
+    function toggleDistQMode(mode) {
+        document.getElementById('dist-q-state').style.display = mode === 'state' ? 'block' : 'none';
+        document.getElementById('dist-q-direct').style.display = mode === 'direct' ? 'block' : 'none';
+        toggleDistQFrac();
+    }
+    function toggleDistQFrac() {
+        const sel = document.getElementById('dist_q_state');
+        const wrap = document.getElementById('dist-q-frac-wrap');
+        if (sel && wrap) {
+            wrap.style.display = sel.value === 'liq_vap' ? 'block' : 'none';
+        }
+    }
+    if (document.getElementById('dist_q_state')) {
+        document.getElementById('dist_q_state').addEventListener('change', toggleDistQFrac);
+        toggleDistQFrac();
+    }
+</script>
+
+{% if sim %}
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const processTypeEl = document.getElementById('process_type');
+        if (processTypeEl) processTypeEl.value = "{{ sim.process_type }}";
+        
+        function setSelectByText(selectId, text) {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+            for(let i=0; i<select.options.length; i++) {
+                if(select.options[i].text === text) {
+                    select.selectedIndex = i;
+                    break;
+                }
+            }
+        }
+        setSelectByText('comp1', "{{ sim.comp1_name }}");
+        setSelectByText('comp2', "{{ sim.comp2_name }}");
+        {% if sim.comp3_name %}
+        setSelectByText('comp3', "{{ sim.comp3_name }}");
+        {% endif %}
+        
+        document.getElementById('temperature').value = "{{ sim.temperature }}";
+        document.getElementById('temp-val').innerText = "{{ sim.temperature }}";
+        
+        document.getElementById('pressure').value = "{{ sim.pressure }}";
+        document.getElementById('pres-val').innerText = "{{ sim.pressure }}";
+        
+        document.getElementById('x1_frac').value = "{{ sim.x1 }}";
+        
+        updateFractions();
+        toggleX2();
+    });
+</script>
+{% endif %}
+
+{% endblock %}

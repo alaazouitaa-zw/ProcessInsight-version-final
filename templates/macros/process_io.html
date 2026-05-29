@@ -1,0 +1,36 @@
+{# Panneaux entrées / sorties par opération — macro réutilisable #}
+{% macro io_panel(title, color, inputs, outputs, input_labels=None, output_labels=None) %}
+<div class="glass-panel" style="padding:1rem 1.25rem; background:rgba(15,23,42,0.5); border:1px solid {{ color }}33; margin-bottom:1rem;">
+    <h4 style="margin:0 0 10px 0; color:{{ color }}; font-size:0.95rem;">{{ title }}</h4>
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+        <div>
+            <h5 style="margin:0 0 6px 0; font-size:0.75rem; color:#94a3b8; text-transform:uppercase;">Entrées (config)</h5>
+            <div style="display:flex; flex-direction:column; gap:4px; font-size:0.8rem; color:#e2e8f0;">
+                {% if inputs %}
+                {% for key, val in inputs.items() %}
+                {% if key != 'process' %}
+                <div><span style="color:#64748b;">{{ (input_labels or {}).get(key, key) }}:</span> <strong>{{ val }}</strong></div>
+                {% endif %}
+                {% endfor %}
+                {% else %}
+                <span style="color:#64748b;">—</span>
+                {% endif %}
+            </div>
+        </div>
+        <div>
+            <h5 style="margin:0 0 6px 0; font-size:0.75rem; color:#94a3b8; text-transform:uppercase;">Sorties (simulation)</h5>
+            <div style="display:flex; flex-direction:column; gap:4px; font-size:0.8rem; color:#e2e8f0;">
+                {% if outputs %}
+                {% for key, val in outputs.items() %}
+                {% if val is not none and val != '' %}
+                <div><span style="color:#64748b;">{{ (output_labels or {}).get(key, key) }}:</span> <strong>{{ val }}</strong></div>
+                {% endif %}
+                {% endfor %}
+                {% else %}
+                <span style="color:#64748b;">—</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}

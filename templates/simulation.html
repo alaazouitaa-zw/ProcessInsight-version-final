@@ -1,0 +1,1901 @@
+{% extends 'base.html' %}
+{% from 'macros/process_io.html' import io_panel %}
+{% block content %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+<script src="{{ url_for('static', filename='local_charts.js') }}?v=1.0"></script>
+
+<style>
+    /* CSS Tabs System */
+    .tabs { display: flex; gap: 1rem; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; }
+    .tab-btn { background: transparent; color: #94a3b8; border: none; padding: 0.5rem 1rem; font-size: 1rem; font-family: 'Outfit'; cursor: pointer; transition: 0.3s; }
+    .tab-btn:hover { color: #fff; }
+    .tab-btn.active { color: #3b82f6; border-bottom: 2px solid #3b82f6; font-weight: bold; }
+    .tab-content {
+        display: none;
+        animation: fadeIn 0.3s ease;
+    }
+    .hover-bg:hover { background: rgba(255,255,255,0.1) !important; }
+    .tab-content.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    
+    .chart-box { background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 1rem; flex: 1; min-width: 300px; height: 300px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    .voice-share-panel { margin-top:1rem; padding:0.9rem; border-radius:8px; background:rgba(30,41,59,0.55); border:1px solid rgba(148,163,184,0.16); }
+    .voice-share-panel h4 { margin:0 0 0.65rem 0; color:#fff; font-family:'Outfit'; font-size:0.95rem; }
+    .voice-share-panel p { margin:0.45rem 0 0 0; color:#94a3b8; font-size:0.76rem; }
+    .voice-share-panel input { width:100%; box-sizing:border-box; margin-bottom:0.55rem; background:rgba(2,6,23,0.55); border:1px solid rgba(148,163,184,0.25); color:#e2e8f0; border-radius:6px; padding:0.55rem; font-size:0.75rem; }
+    .voice-share-panel button { border:none; border-radius:6px; background:#3b82f6; color:#fff; padding:0.5rem 0.65rem; cursor:pointer; font-weight:700; font-size:0.74rem; }
+    .voice-actions { display:flex; flex-wrap:wrap; gap:0.45rem; }
+    
+    /* Animation Keyframes */
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+    @keyframes flow-down { 0% { transform: translateY(-10px); opacity: 0; } 50% { opacity: 1; } 100% { transform: translateY(30px); opacity: 0; } }
+    @keyframes flow-up { 0% { transform: translateY(10px); opacity: 0; } 50% { opacity: 1; } 100% { transform: translateY(-30px); opacity: 0; } }
+    @keyframes pump-flow { 0% { transform: translateX(0); opacity: 0; } 50% { opacity: 1; } 100% { transform: translateX(80px); opacity: 0; } }
+    @keyframes dash-flow { to { stroke-dashoffset: -15; } }
+    @keyframes hex-flow-hot { 0% { stroke-dashoffset: 200; stroke: #ef4444; } 100% { stroke-dashoffset: 0; stroke: #f59e0b; } }
+    @keyframes hex-flow-cold { 0% { stroke-dashoffset: 200; stroke: #3b82f6; } 100% { stroke-dashoffset: 0; stroke: #10b981; } }
+</style>
+
+<div class="app-container" style="height: auto; padding: 0;">
+    
+    <aside class="sidebar glass-panel" id="export-source">
+        <h3 style="color:var(--primary); font-family:var(--font-heading)">Diagnostic {{ results.process_types|join(', ')|upper }}</h3>
+        
+        <div id="insights-container" style="margin-bottom: 1.5rem;">
+            {% for insight in results.insights %}
+            <div class="insight-card {{ insight.type }}" style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 8px; border-left: 4px solid var(--accent); margin-bottom: 0.5rem;">
+                <strong>{% if insight.type == 'warning' %}⚠️{% elif insight.type == 'success' %}✅{% else %}💡{% endif %}</strong>
+                {{ insight.message }}
+            </div>
+            {% endfor %}
+        </div>
+
+
+        <div class="results glass-panel">
+            <h3>Calculs Thermodynamiques Fondamentaux</h3>
+            <p>Modèle / EOS : <span class="model-badge">{{ results.model_used }}</span></p>
+            {% if results.model_explanation %}
+            <p style="font-size: 0.75rem; color: #94a3b8; font-style: italic; margin-top: 4px;">{{ results.model_explanation }}</p>
+            {% endif %}
+            <div style="margin-top:10px; font-size: 0.9rem; color: #cbd5e1;">
+                <p>Pression Système : {{ "%.2f"|format(results.data.equilibrium.P_sys if results.data.equilibrium else results.data.P_bubble) }} kPa</p>
+                <p>Température Bulle / Rosée : {{ "%.1f"|format(results.data.T_bubble) }}°C / {{ "%.1f"|format(results.data.T_dew) }}°C</p>
+                <p>Pression Bulle / Rosée : {{ "%.1f"|format(results.data.P_bubble) }} kPa / {{ "%.1f"|format(results.data.P_dew) }} kPa</p>
+                <hr style="border-color: rgba(255,255,255,0.1); margin: 10px 0;">
+                <p>Constante K1 (y1/x1) : {{ "%.2f"|format(results.data.K1) }}</p>
+                <p>Constante K2 (y2/x2) : {{ "%.2f"|format(results.data.K2) }}</p>
+                <p>Facteur Compressibilité Z : {{ "%.3f"|format(results.data.Z_factor) }}</p>
+                <p>Activité (&gamma;1) : {{ "%.3f"|format(results.data.gamma1) }}</p>
+            </div>
+        </div>
+
+        <!-- Auto-save notification -->
+        <div style="margin-top: 1rem; text-align: center; font-size: 0.8rem; color: #10b981; background: rgba(16, 185, 129, 0.1); padding: 8px; border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.2);">
+            ✅ Simulation enregistrée automatiquement dans votre historique.
+        </div>
+        {% if shared_view is defined and shared_view %}
+        <div style="margin-top:0.6rem; text-align:center; font-size:0.75rem; color:#93c5fd;">
+            Cette page est une simulation partagee en lecture seule.
+        </div>
+        {% endif %}
+
+        <div class="voice-share-panel">
+            <h4>Lecture vocale</h4>
+            <div class="voice-actions">
+                <button type="button" onclick="readSimulationSummary()">Lire resume</button>
+                <button type="button" onclick="readVisibleSimulation()">Lire page</button>
+                <button type="button" onclick="stopReading()">Stop</button>
+            </div>
+        </div>
+
+        <div class="voice-share-panel">
+            <h4>Partager</h4>
+            {% if results.share_url is defined %}
+            <input id="shareLinkInput" type="text" readonly value="{{ results.share_url }}">
+            <button type="button" onclick="copyShareLink()">Copier le lien</button>
+            <p id="shareStatus"></p>
+            {% else %}
+            <p>Le lien sera disponible apres la sauvegarde automatique.</p>
+            {% endif %}
+        </div>
+    </aside>
+
+    <main class="main-content" id="export-source-main">
+        <section class="glass-panel" style="padding: 2rem;">
+            
+            <div class="tabs">
+                <button class="tab-btn active" onclick="openTab(event, 'tab-physique')">Physique & Molécule</button>
+                <button class="tab-btn" onclick="openTab(event, 'tab-eq')">Courbes d'Équilibre (2)</button>
+                <button class="tab-btn" onclick="openTab(event, 'tab-sens')">Sensibilité & Optimisation (1)</button>
+                {% if 'distillation' in results.process_types %}
+                <button class="tab-btn" onclick="openTab(event, 'tab-mccabe')">McCabe-Thiele</button>
+                {% endif %}
+                {% if 'extraction' in results.process_types %}
+                <button class="tab-btn" onclick="openTab(event, 'tab-extraction')">Extraction L-L</button>
+                {% endif %}
+                {% if 'absorption' in results.process_types %}
+                <button class="tab-btn" onclick="openTab(event, 'tab-absorption')">Absorption G-L</button>
+                {% endif %}
+                {% if 'flash' in results.process_types %}
+                <button class="tab-btn" onclick="openTab(event, 'tab-flash')">Flash</button>
+                {% endif %}
+                {% if 'pump' in results.process_types %}
+                <button class="tab-btn" onclick="openTab(event, 'tab-pump')">Pompe</button>
+                {% endif %}
+                {% if 'compressor' in results.process_types %}
+                <button class="tab-btn" onclick="openTab(event, 'tab-compressor')">Compresseur</button>
+                {% endif %}
+                {% if 'heat_exchanger' in results.process_types %}
+                <button class="tab-btn" onclick="openTab(event, 'tab-hex')">Échangeur</button>
+                {% endif %}
+            </div>
+
+            <!-- TAB 1 : MOLÉCULE (Physique) -->
+            <div id="tab-physique" class="tab-content active">
+                <h2 style="color:var(--text-main); text-align:center;">Simulation du Procédé (Temps Réel)</h2>
+                
+                <div style="display: flex; justify-content: center; margin-top: 2rem; position: relative; min-height: 450px;">
+                    
+                    {% if results.components | length >= 2 %}
+                        {% set volatil = results.components[0] %}
+                        {% set lourd = results.components[1] %}
+                        {% if results.data and results.data.alpha < 1 %}
+                            {% set volatil = results.components[1] %}
+                            {% set lourd = results.components[0] %}
+                        {% endif %}
+                    {% else %}
+                        {% set volatil = 'Gaz absorbé' %}
+                        {% set lourd = 'Liquide absorbant' %}
+                    {% endif %}
+                    {% set mixture_str = results.components | join(' + ') if results.components else 'Gaz absorbé + Liquide absorbant' %}
+
+                    {% if 'distillation' in results.process_types %}
+                    <!-- ANIMATION DISTILLATION (McCabe-Thiele Intégré) -->
+                    <div style="position: relative; width: 500px; height: 450px;">
+                        <!-- Condenser -->
+                        <div style="position: absolute; top: -10px; left: 150px; width: 100px; height: 45px; display: flex; align-items: center; justify-content: center; flex-direction: column; z-index: 10;">
+                            <svg width="60" height="24" viewBox="0 0 60 24" style="overflow:visible; filter: drop-shadow(0 0 5px rgba(59,130,246,0.5));">
+                                <rect x="5" y="2" width="50" height="20" rx="10" fill="rgba(59, 130, 246, 0.2)" stroke="#3b82f6" stroke-width="2"/>
+                                <path d="M 15 -5 L 15 2 M 45 22 L 45 29" stroke="#93c5fd" stroke-width="2"/>
+                                <path d="M 5 12 L 55 12" stroke="#3b82f6" stroke-width="2"/>
+                            </svg>
+                            <span style="color:#60a5fa; font-size: 0.65rem; font-weight:bold; letter-spacing:1px; margin-top:4px;">CONDENSEUR</span>
+                        </div>
+                        <!-- Reflux / Distillate -->
+                        <svg style="position: absolute; top: 5px; left: 250px; width: 250px; height: 50px; overflow: visible;">
+                            <path d="M 0 12 L 80 12" stroke="#10b981" stroke-width="3" fill="none" stroke-dasharray="10,5" style="animation: dash-flow 0.5s infinite linear;"></path>
+                            <text x="90" y="10" fill="#10b981" font-size="12" font-weight="bold">Distillat (D)</text>
+                            <text x="90" y="24" fill="#a7f3d0" font-size="10">~ {{ volatil }} (Volatil)</text>
+                        </svg>
+                        
+                        <!-- Column -->
+                        <div class="column-graphic" style="position: absolute; top: 35px; left: 170px; width: 60px; height: 360px; border-radius: 5px; box-shadow: inset 0 0 20px rgba(0,0,0,0.5); display: flex; flex-direction: column;">
+                            {% set feed_stage = 5 %}
+                            {% set n_stages = 10 %}
+                            {% if results.op_results and results.op_results.distillation %}
+                                {% set feed_stage = results.op_results.distillation.feed_stage %}
+                                {% set n_stages = results.op_results.distillation.n_stages %}
+                            {% endif %}
+                            
+                            {% if n_stages < 1 %}{% set n_stages = 1 %}{% endif %}
+                            {% if n_stages > 100 %}{% set n_stages = 100 %}{% endif %}
+                            
+                            {% for s in range(1, n_stages + 1) %}
+                                <div style="position:relative; flex: 1; width:100%; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                                    <!-- Vapor ascending (red/orange) -->
+                                    <div style="position:absolute; left: 15px; top: 50%; width:4px; height:4px; background:#f87171; border-radius:50%; animation: flow-up 1s infinite linear; animation-delay: {{ loop.index * 0.05 }}s;"></div>
+                                    <!-- Liquid descending (blue) -->
+                                    <div style="position:absolute; right: 15px; top: 50%; width:4px; height:4px; background:#60a5fa; border-radius:50%; animation: flow-down 1s infinite linear; animation-delay: {{ loop.index * 0.05 }}s;"></div>
+                                    
+                                    <!-- Feed inlet indicator -->
+                                    {% if s == feed_stage %}
+                                    <div style="position: absolute; left: -100px; top: 50%; transform: translateY(-50%); width: 100px; height: 3px; background: linear-gradient(90deg, transparent, #f59e0b);"></div>
+                                    <div style="position: absolute; left: -140px; top: 50%; transform: translateY(-50%); color: #f59e0b; font-weight: bold; text-shadow: 0 0 5px #f59e0b; font-size: 0.85rem;">▶ ALIM (F)</div>
+                                    <div style="position: absolute; left: 75px; top: 50%; transform: translateY(-50%); color: #e2e8f0; font-size: 0.75rem; white-space: nowrap; background: rgba(0,0,0,0.5); padding: 2px 5px; border-radius: 4px;">Étage {{ s }} / {{ n_stages }}</div>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+
+                        <!-- Reboiler -->
+                        <div style="position: absolute; bottom: 5px; left: 150px; width: 100px; height: 45px; display: flex; align-items: center; justify-content: center; flex-direction: column; z-index: 10;">
+                            <span style="color:#f87171; font-size: 0.65rem; font-weight:bold; letter-spacing:1px; margin-bottom:4px;">REBOUILLEUR</span>
+                            <svg width="60" height="26" viewBox="0 0 60 26" style="overflow:visible; filter: drop-shadow(0 0 5px rgba(239,68,68,0.5));">
+                                <path d="M 15 3 L 35 3 A 10 10 0 0 1 35 23 L 15 23 Z" fill="rgba(239, 68, 68, 0.2)" stroke="#ef4444" stroke-width="2"/>
+                                <path d="M 0 8 L 25 8 C 32 8 32 18 25 18 L 0 18" fill="none" stroke="#fca5a5" stroke-width="2"/>
+                            </svg>
+                        </div>
+                        <!-- Bottoms -->
+                        <svg style="position: absolute; bottom: 25px; left: 250px; width: 250px; height: 50px; overflow: visible;">
+                            <path d="M 0 12 L 80 12" stroke="#f59e0b" stroke-width="3" fill="none" stroke-dasharray="10,5" style="animation: dash-flow 0.5s infinite linear;"></path>
+                            <text x="90" y="10" fill="#f59e0b" font-size="12" font-weight="bold">Résidu (B)</text>
+                            <text x="90" y="24" fill="#fcd34d" font-size="10">~ {{ lourd }} (Lourd)</text>
+                        </svg>
+                    </div>
+
+                    {% endif %}
+                    {% if 'pump' in results.process_types %}
+                    <!-- ANIMATION POMPE CENTRIFUGE -->
+                    <div style="position:relative; width:450px; height:300px; margin-top:50px;">
+                        <!-- Aspiration -->
+                        <div style="position:absolute; top:135px; left:0; width:120px; height:30px; background:rgba(59,130,246,0.2); border:2px solid #3b82f6;">
+                            <div style="width:10px; height:10px; background:#60a5fa; border-radius:50%; margin-top:10px; animation: pump-flow 1s infinite linear;"></div>
+                        </div>
+                        <div style="position:absolute; top:90px; left:0; color:#60a5fa; font-size:0.85rem;">
+                            Entrée (Basse Pression)<br>
+                            <span style="color:#e2e8f0;">{{ mixture_str }} (Liq)</span>
+                        </div>
+                        
+                        <!-- Volute Pompe -->
+                        <div style="position:absolute; top:75px; left:120px; width:150px; height:150px; background:radial-gradient(circle, #334155, #0f172a); border-radius:50%; border:4px solid #64748b; display:flex; align-items:center; justify-content:center; box-shadow: 0 0 30px rgba(59,130,246,0.3);">
+                            <!-- Hélice / Impeller animée -->
+                            <svg width="100" height="100" viewBox="0 0 100 100" style="animation: spin 0.5s infinite linear;">
+                                <circle cx="50" cy="50" r="10" fill="#94a3b8"/>
+                                <path d="M50 50 Q 80 20 90 50 Q 80 80 50 50" fill="#cbd5e1" opacity="0.8"/>
+                                <path d="M50 50 Q 20 80 10 50 Q 20 20 50 50" fill="#cbd5e1" opacity="0.8"/>
+                                <path d="M50 50 Q 80 80 50 90 Q 20 80 50 50" fill="#cbd5e1" opacity="0.8"/>
+                                <path d="M50 50 Q 20 20 50 10 Q 80 20 50 50" fill="#cbd5e1" opacity="0.8"/>
+                            </svg>
+                        </div>
+                        
+                        <!-- Refoulement -->
+                        <div style="position:absolute; top:0; left:180px; width:30px; height:75px; background:rgba(37,99,235,0.5); border:2px solid #2563eb;">
+                            <div style="width:10px; height:10px; background:#bfdbfe; border-radius:50%; margin-left:10px; animation: flow-up 0.5s infinite linear;"></div>
+                        </div>
+                        <div style="position:absolute; top:-40px; left:160px; color:#bfdbfe; font-size:0.85rem; width: 150px;">
+                            Sortie (Haute Pression)<br>
+                            <span style="color:#e2e8f0;">{{ mixture_str }} (Liq)</span>
+                        </div>
+                    </div>
+
+                    {% endif %}
+                    {% if 'compressor' in results.process_types %}
+                    <!-- ANIMATION COMPRESSEUR -->
+                    <div style="position:relative; width:450px; height:300px; margin-top:50px;">
+                        <!-- Aspiration Gaz -->
+                        <div style="position:absolute; top:135px; left:0; width:100px; height:30px; background:rgba(16,185,129,0.1); border:2px dashed #10b981;">
+                            <div style="width:8px; height:8px; background:#34d399; border-radius:50%; margin-top:10px; animation: pump-flow 0.8s infinite linear;"></div>
+                        </div>
+                        <div style="position:absolute; top:90px; left:0; color:#34d399; font-size:0.85rem; width: 120px;">
+                            Aspiration Gaz<br>
+                            <span style="color:#e2e8f0;">{{ mixture_str }}</span>
+                        </div>
+                        
+                        <!-- Corps Compresseur -->
+                        <svg width="200" height="150" style="position:absolute; top:75px; left:100px;">
+                            <polygon points="0,30 200,60 200,90 0,120" fill="rgba(245,158,11,0.2)" stroke="#f59e0b" stroke-width="3"/>
+                            <!-- Pistons internes rotatifs simulés -->
+                            <circle cx="100" cy="75" r="30" fill="none" stroke="#fcd34d" stroke-width="4" stroke-dasharray="20,10" style="animation: spin 1s infinite linear;"/>
+                            <circle cx="100" cy="75" r="15" fill="none" stroke="#f87171" stroke-width="4" stroke-dasharray="10,5" style="animation: spin 0.5s infinite reverse linear;"/>
+                        </svg>
+
+                        <!-- Refoulement Gaz Chaud/Compressé -->
+                        <div style="position:absolute; top:135px; left:300px; width:100px; height:30px; background:rgba(239,68,68,0.3); border:2px solid #ef4444;">
+                            <div style="width:12px; height:12px; background:#fca5a5; border-radius:50%; margin-top:9px; animation: pump-flow 0.4s infinite linear;"></div>
+                        </div>
+                        <div style="position:absolute; top:170px; left:300px; color:#fca5a5; font-size:0.85rem; width: 150px;">
+                            Refoulement (Chaud)<br>
+                            <span style="color:#e2e8f0;">{{ mixture_str }}</span>
+                        </div>
+                    </div>
+
+                    {% endif %}
+                    {% if 'heat_exchanger' in results.process_types %}
+                    <!-- ANIMATION ECHANGEUR (SHELL & TUBE) -->
+                    <div style="position:relative; width:500px; height:300px; margin-top:50px;">
+                        <!-- Calandre (Shell) -->
+                        <div style="position:absolute; top:80px; left:50px; width:400px; height:140px; background:rgba(255,255,255,0.02); border:4px solid #64748b; border-radius: 20px;"></div>
+                        
+                        <!-- Flux Chaud (Tubes) -->
+                        <svg width="500" height="300" style="position:absolute; top:0; left:0;">
+                            <!-- Tube path -->
+                            <path d="M 0 120 L 450 120 C 470 120 470 140 450 140 L 50 140 C 30 140 30 160 50 160 L 450 160 C 470 160 470 180 450 180 L 0 180" fill="none" stroke="#ef4444" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" style="animation: hex-flow-hot 4s infinite alternate ease-in-out; stroke-dasharray: 50, 10; opacity: 0.8;"></path>
+                            <!-- Indications -->
+                            <text x="10" y="110" fill="#fca5a5" font-size="12">Entrée: {{ mixture_str }}</text>
+                            <text x="10" y="200" fill="#fca5a5" font-size="12">Sortie: {{ mixture_str }}</text>
+                        </svg>
+
+                        <!-- Flux Froid (Calandre) -->
+                        <svg width="500" height="300" style="position:absolute; top:0; left:0;">
+                            <!-- Cold flow arrows -->
+                            <path d="M 400 40 L 400 100" stroke="#3b82f6" stroke-width="15" opacity="0.6" style="animation: flow-down 2s infinite;"></path>
+                            <path d="M 100 200 L 100 260" stroke="#3b82f6" stroke-width="15" opacity="0.6" style="animation: flow-down 2s infinite;"></path>
+                            <text x="320" y="30" fill="#93c5fd" font-size="12">Fluide utilité (Entrée)</text>
+                            <text x="20" y="280" fill="#93c5fd" font-size="12">Fluide utilité (Sortie)</text>
+                        </svg>
+                    </div>
+
+                    {% endif %}
+                    {% if 'flash' in results.process_types %}
+                    <!-- ANIMATION BALLON FLASH -->
+                    <div style="position: relative; width: 400px; height: 350px; margin-top: 50px;">
+                        <!-- Alimentation -->
+                        <div style="position: absolute; top: 150px; left: 0; width: 100px; height: 3px; background: linear-gradient(90deg, transparent, #f59e0b);"></div>
+                        <div style="position: absolute; top: 120px; left: 0; color: #f59e0b; font-size: 0.85rem; font-weight: bold;">
+                            Alimentation (F)<br>
+                            <span style="color:#e2e8f0; font-weight:normal;">{{ mixture_str }}</span>
+                        </div>
+                        
+                        <!-- Ballon -->
+                        <div style="position: absolute; top: 50px; left: 100px; width: 120px; height: 200px; border: 4px solid #64748b; border-radius: 60px; background: rgba(0,0,0,0.3); overflow: hidden; box-shadow: inset 0 0 20px rgba(0,0,0,0.5);">
+                            <!-- Vapor space -->
+                            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 60%; background: rgba(255,255,255,0.05);">
+                                <div style="position:absolute; left: 40px; top: 60px; width:6px; height:6px; background:#f87171; border-radius:50%; animation: flow-up 1.5s infinite linear;"></div>
+                                <div style="position:absolute; left: 70px; top: 80px; width:6px; height:6px; background:#f87171; border-radius:50%; animation: flow-up 1.5s infinite linear; animation-delay: 0.5s;"></div>
+                            </div>
+                            <!-- Liquid space -->
+                            <div style="position: absolute; bottom: 0; left: 0; width: 100%; height: 40%; background: rgba(59,130,246,0.3);">
+                                <div style="position:absolute; left: 50px; top: 20px; width:8px; height:8px; background:#60a5fa; border-radius:50%; animation: flow-down 1.5s infinite linear;"></div>
+                            </div>
+                        </div>
+
+                        <!-- Vapeur Sortante -->
+                        <svg style="position: absolute; top: -10px; left: 150px; width: 250px; height: 60px; overflow: visible;">
+                            <path d="M 10 60 L 10 30 L 150 30" stroke="#10b981" stroke-width="3" fill="none" stroke-dasharray="10,5" style="animation: dash-flow 0.5s infinite linear;"></path>
+                            <text x="160" y="28" fill="#10b981" font-size="12" font-weight="bold">Vapeur (V)</text>
+                            <text x="160" y="42" fill="#a7f3d0" font-size="10">~ {{ volatil }} (Volatil)</text>
+                        </svg>
+
+                        <!-- Liquide Sortant -->
+                        <svg style="position: absolute; bottom: 20px; left: 150px; width: 250px; height: 80px; overflow: visible;">
+                            <path d="M 10 0 L 10 50 L 150 50" stroke="#f59e0b" stroke-width="3" fill="none" stroke-dasharray="10,5" style="animation: dash-flow 0.5s infinite linear;"></path>
+                            <text x="160" y="48" fill="#f59e0b" font-size="12" font-weight="bold">Liquide (L)</text>
+                            <text x="160" y="62" fill="#fcd34d" font-size="10">~ {{ lourd }} (Lourd)</text>
+                        </svg>
+                    </div>
+
+                    {% endif %}
+                    {% if 'extraction' in results.process_types %}
+                    {% set ext_anim = results.op_results.extraction %}
+                    <div style="position: relative; width: 450px; height: 400px; margin-top: 20px;">
+                        <span style="position:absolute; top:0; left:0; font-size:0.7rem; color:#fbbf24; font-weight:bold;">EXTRACTION L-L</span>
+                        <div class="extraction-column" style="position: absolute; top: 30px; left: 150px; width: 80px; height: 340px; border-radius: 5px; border: 3px solid #64748b; background: rgba(234, 179, 8, 0.08); display: flex; flex-direction: column;">
+                            {% for s in range(1, 9) %}
+                                <div style="position:relative; flex: 1; width:100%; border-bottom: 2px dashed rgba(255,255,255,0.2);">
+                                    <div style="position:absolute; left: 20px; top: 50%; width:6px; height:6px; background:#fbbf24; border-radius:50%; animation: flow-up 1s infinite linear; animation-delay: {{ loop.index * 0.1 }}s;"></div>
+                                    <div style="position:absolute; right: 20px; top: 50%; width:6px; height:6px; background:#60a5fa; border-radius:50%; animation: flow-down 1s infinite linear; animation-delay: {{ loop.index * 0.1 }}s;"></div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                        <svg style="position: absolute; top: 0; left: 0; width: 450px; height: 60px; overflow: visible;">
+                            <path d="M 50 15 L 170 15 L 170 30" stroke="#10b981" stroke-width="3" fill="none" stroke-dasharray="10,5"/>
+                            <text x="50" y="10" fill="#10b981" font-size="11">Solvant S ({{ ext_anim.inputs.solvant if ext_anim.inputs is defined else 'S' }})</text>
+                            <path d="M 210 30 L 210 15 L 350 15" stroke="#fbbf24" stroke-width="3" fill="none" stroke-dasharray="10,5"/>
+                            <text x="250" y="10" fill="#fbbf24" font-size="11">Extrait E ↑</text>
+                        </svg>
+                        <svg style="position: absolute; bottom: -10px; left: 0; width: 450px; height: 60px; overflow: visible;">
+                            <path d="M 50 45 L 170 45 L 170 30" stroke="#f87171" stroke-width="3" fill="none" stroke-dasharray="10,5"/>
+                            <text x="50" y="60" fill="#f87171" font-size="11">Charge F (soluté/diluant)</text>
+                            <path d="M 210 30 L 210 45 L 350 45" stroke="#60a5fa" stroke-width="3" fill="none" stroke-dasharray="10,5"/>
+                            <text x="250" y="60" fill="#60a5fa" font-size="11">Raffinat R ↓</text>
+                        </svg>
+                    </div>
+                    {% endif %}
+
+                    {% if 'absorption' in results.process_types %}
+                    {% set abs_anim = results.op_results.absorption %}
+                    <div style="position: relative; width: 450px; height: 400px; margin-top: 20px;">
+                        <span style="position:absolute; top:0; left:0; font-size:0.7rem; color:#34d399; font-weight:bold;">ABSORPTION G-L</span>
+                        <div style="position: absolute; top: 30px; left: 150px; width: 80px; height: 340px; border-radius: 5px; border: 3px solid #10b981; background: rgba(16, 185, 129, 0.08); display: flex; flex-direction: column;">
+                            {% for s in range(1, 9) %}
+                                <div style="position:relative; flex: 1; width:100%; border-bottom: 2px dashed rgba(255,255,255,0.15);">
+                                    <div style="position:absolute; left: 22px; top: 50%; width:6px; height:6px; background:#f87171; border-radius:50%; animation: flow-up 0.8s infinite linear; animation-delay: {{ loop.index * 0.08 }}s;"></div>
+                                    <div style="position:absolute; right: 22px; top: 50%; width:6px; height:6px; background:#34d399; border-radius:50%; animation: flow-down 0.8s infinite linear; animation-delay: {{ loop.index * 0.08 }}s;"></div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                        <svg style="position: absolute; top: 0; left: 0; width: 450px; height: 65px; overflow: visible;">
+                            <path d="M 50 20 L 170 20 L 170 30" stroke="#34d399" stroke-width="3" fill="none" stroke-dasharray="10,5"/>
+                            <text x="50" y="12" fill="#34d399" font-size="11">Liquide L ↓ ({{ abs_anim.inputs.absorbant_liquide if abs_anim.inputs is defined else 'absorbant' }})</text>
+                            <path d="M 210 30 L 210 12 L 350 12" stroke="#fca5a5" stroke-width="3" fill="none" stroke-dasharray="10,5"/>
+                            <text x="250" y="10" fill="#fca5a5" font-size="11">Gaz G ↑ épuré (y_out)</text>
+                        </svg>
+                        <svg style="position: absolute; bottom: -10px; left: 0; width: 450px; height: 65px; overflow: visible;">
+                            <path d="M 50 48 L 170 48 L 170 30" stroke="#f87171" stroke-width="3" fill="none" stroke-dasharray="10,5"/>
+                            <text x="50" y="62" fill="#f87171" font-size="11">Gaz G ↑ pollué ({{ abs_anim.inputs.solute_gaz if abs_anim.inputs is defined else 'soluté' }})</text>
+                            <path d="M 210 30 L 210 50 L 350 50" stroke="#34d399" stroke-width="3" fill="none" stroke-dasharray="10,5"/>
+                            <text x="250" y="62" fill="#34d399" font-size="11">Liquide L chargé ↓</text>
+                        </svg>
+                    </div>
+                    {% endif %}
+                    
+                </div>
+            </div>
+
+            <!-- TAB 2 : EQUILIBRES (x-y, T-x-y) -->
+            <div id="tab-eq" class="tab-content">
+                <div class="grid-2">
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        <div class="chart-box" style="height: 300px;"><canvas id="chartXY"></canvas></div>
+                        <p style="font-size: 0.8rem; color: #94a3b8; line-height: 1.4; padding: 0.5rem; background: rgba(255,255,255,0.02); border-radius: 6px; border-left: 3px solid var(--primary);">
+                            <strong>Diagramme x-y :</strong> Représente la fraction en phase vapeur (y) en fonction de la phase liquide (x) pour le composé volatil. L'écart avec la diagonale y=x mesure la facilité de séparation : plus l'écart est grand, plus la distillation est facile.
+                        </p>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        <div class="chart-box" style="height: 300px;"><canvas id="chartTXY"></canvas></div>
+                        <p style="font-size: 0.8rem; color: #94a3b8; line-height: 1.4; padding: 0.5rem; background: rgba(255,255,255,0.02); border-radius: 6px; border-left: 3px solid var(--primary);">
+                            <strong>Diagramme T-x-y :</strong> Montre les courbes de bulle (température d'ébullition du liquide) et de rosée (température de condensation de la vapeur) à pression constante. La zone entre les deux courbes représente l'état diphasique liquide-vapeur.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 4 : SENSIBILITE -->
+            <div id="tab-sens" class="tab-content">
+                <div style="max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; gap: 0.5rem;">
+                    <div class="chart-box" style="height: 350px;"><canvas id="chartEffectP"></canvas></div>
+                    <p style="font-size: 0.85rem; color: #94a3b8; line-height: 1.4; padding: 0.75rem; background: rgba(255,255,255,0.02); border-radius: 6px; border-left: 3px solid var(--primary);">
+                        <strong>Influence de la Pression (Idéalité) :</strong> Représente l'évolution du facteur de compressibilité (Z) en fonction de la pression du système. Un facteur Z proche de 1 indique un comportement idéal de gaz parfait. Toute déviation montre l'impact des interactions moléculaires à haute pression, modélisées par l'EOS choisie.
+                    </p>
+                </div>
+            </div>
+            
+            {% if 'distillation' in results.process_types %}
+            {% set dist = results.op_results.distillation %}
+            {% set n_etages = dist.N_steps if dist.N_steps is defined else dist.n_stages %}
+            <div id="tab-mccabe" class="tab-content" style="display:flex; flex-direction:column; gap:1.5rem;">
+                {{ io_panel('Distillation — entrées / sorties', '#f97316', dist.inputs, dist.outputs,
+                    {'xD':'xD','xB':'xB','F_kmol_h':'F','R':'Reflux','q':'q','x_feed':'x alim','T_C':'T°C','P_kPa':'P'},
+                    {'n_stages':'Étages','N_min':'N_min','R_min':'R_min','success':'OK'}) }}
+
+                <!-- GRAPHE MCCABE-THIELE (simulation interactive) -->
+                <div class="glass-panel" style="padding: 1.25rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
+                        <h4 style="margin:0; font-family:'Outfit'; color:var(--primary); font-size:1.15rem;">Diagramme de McCabe-Thiele</h4>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                            <button type="button" onclick="if(typeof startDistillationMcCabeAnimation==='function') startDistillationMcCabeAnimation();" class="btn-primary" style="padding:6px 16px; font-size:0.85rem; border-radius:20px; background:var(--accent); border:none; color:#fff; cursor:pointer;">▶ Animer l'escalier</button>
+                            <button type="button" onclick="if(typeof resetDistillationMcCabeChart==='function') resetDistillationMcCabeChart();" class="btn-primary" style="padding:6px 16px; font-size:0.85rem; border-radius:20px; background:rgba(100,116,139,0.5); border:1px solid rgba(255,255,255,0.15); color:#fff; cursor:pointer;">↺ Réinitialiser</button>
+                        </div>
+                    </div>
+                    <div id="sim-plotly-mccabe-main" style="height:520px; width:100%; border-radius:8px; background:rgba(0,0,0,0.25);"></div>
+                    <div class="chart-box" style="height:380px; margin-top:1rem;"><canvas id="chartMcCabe"></canvas></div>
+                    <p style="font-size:0.85rem; color:#94a3b8; line-height:1.5; margin:10px 0 0; padding:0.75rem; background:rgba(255,255,255,0.02); border-radius:6px; border-left:3px solid var(--primary);">
+                        <strong>Méthode de McCabe-Thiele :</strong> construction graphique en escalier entre la courbe d'équilibre L-V (bleue), la diagonale <em>y = x</em>, les droites opératoires de rectification (verte) et d'épuisement (orange), la <em>q-line</em> d'alimentation (rouge) et les étages théoriques (violet). Le nombre d'escaliers indique les plateaux d'équilibre requis.
+                        {% if n_etages >= 150 %}
+                        <br><span style="color:#f59e0b;">⚠️ Limite de calcul atteinte : augmentez le reflux (R) ou assouplissez les puretés xD / xB.</span>
+                        {% endif %}
+                    </p>
+                </div>
+                
+                <!-- DYNAMIC SCIENCE DISCLAIMER -->
+                <div style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); padding: 8px 16px; border-radius: 8px; font-size: 0.8rem; color: #93c5fd; text-align: center;">
+                    🛡️ <strong>Message Scientifique :</strong> Tous les résultats sont calculés sur la base de modèles scientifiques reconnus en génie des procédés et vérifiés par cohérence physique et thermodynamique.
+                </div>
+
+                <!-- 1. DISTILLATION DASHBOARD -->
+                <div class="glass-panel" style="padding: 1.5rem; background: rgba(15, 23, 42, 0.4);">
+                    <h4 style="margin: 0 0 1rem 0; font-family: 'Outfit'; font-size: 1.25rem; font-weight: 800; color: var(--primary);">DISTILLATION DASHBOARD</h4>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
+                        <div style="background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 1rem; text-align: center; border-bottom: 3px solid #10b981;">
+                            <span style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">Pureté Distillat (xD)</span>
+                            <div style="font-family: 'Outfit'; font-size: 1.6rem; font-weight: 800; color: #fff; margin-top: 5px;">{{ "%.2f"|format(results.op_results.distillation.lines.rectifying[0].x*100) }} %</div>
+                            <span style="font-size:0.65rem; color:#10b981;">● Enrichi en {{ results.components[0] }}</span>
+                        </div>
+                        <div style="background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 1rem; text-align: center; border-bottom: 3px solid #f59e0b;">
+                            <span style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">Pureté Résidu (xB)</span>
+                            <div style="font-family: 'Outfit'; font-size: 1.6rem; font-weight: 800; color: #fff; margin-top: 5px;">{{ "%.2f"|format(results.op_results.distillation.lines.stripping[0].x*100) }} %</div>
+                            <span style="font-size:0.65rem; color:#f59e0b;">● Reste de {{ results.components[1] }}</span>
+                        </div>
+                        <div style="background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 1rem; text-align: center; border-bottom: 3px solid #3b82f6;">
+                            <span style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">Etages Théoriques</span>
+                            <div style="font-family: 'Outfit'; font-size: 1.6rem; font-weight: 800; color: #fff; margin-top: 5px;">{{ n_etages }}</div>
+                            <span style="font-size:0.65rem; color:#94a3b8;">{% if dist.N_min is defined %}N_min = {{ dist.N_min }} | {% endif %}{% if dist.R_min is defined %}R_min = {{ dist.R_min }}{% endif %}</span>
+                        </div>
+                        {% if dist.energy is defined %}
+                        <div style="background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 1rem; text-align: center; border-bottom: 3px solid var(--accent);">
+                            <span style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">Charge Rebouilleur</span>
+                            <div style="font-family: 'Outfit'; font-size: 1.6rem; font-weight: 800; color: #fff; margin-top: 5px;">{{ dist.energy.Q_reboiler }} kW</div>
+                            <span style="font-size:0.65rem; color:#cbd5e1;">Q_cond = {{ dist.energy.Q_condenser }} kW</span>
+                        </div>
+                        <div style="background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 1rem; text-align: center; border-bottom: 3px solid #a855f7;">
+                            <span style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">Efficacité Carnot</span>
+                            <div style="font-family: 'Outfit'; font-size: 1.6rem; font-weight: 800; color: #fff; margin-top: 5px;">{{ dist.energy.thermal_efficiency }} %</div>
+                            <span style="font-size:0.65rem; color:#94a3b8;">Thermodynamique</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- 2. AI DIAGNOSTICS & RECOMMENDER -->
+                <div class="glass-panel" style="background: rgba(15, 23, 42, 0.4); padding: 1.2rem;">
+                    <h4 style="margin: 0 0 0.75rem 0; font-family: 'Outfit'; font-size: 1.05rem; color: #fff; display: flex; align-items: center; gap: 8px;">
+                        🤖 RECOMMANDATIONS IA & VALIDATION THERMIQUE
+                    </h4>
+                    <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                        {% if dist.warnings is defined %}
+                        {% for warn in dist.warnings %}
+                        <div style="padding: 0.75rem; border-radius: 6px; background: {% if warn.type == 'danger' %}rgba(239, 68, 68, 0.1){% elif warn.type == 'warning' %}rgba(245, 158, 11, 0.1){% else %}rgba(16, 185, 129, 0.1){% endif %}; border-left: 4px solid {% if warn.type == 'danger' %}#ef4444{% elif warn.type == 'warning' %}#f59e0b{% else %}#10b981{% endif %}; font-size: 0.8rem; color:#f8fafc;">
+                            {{ warn.message }}
+                        </div>
+                        {% endfor %}
+                        {% else %}
+                        <div style="padding:0.75rem; border-radius:6px; background:rgba(16,185,129,0.1); border-left:4px solid #10b981; font-size:0.8rem; color:#f8fafc;">
+                            Consultez le diagramme McCabe-Thiele ci-dessus pour le nombre d'étages et la faisabilité de la séparation.
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- 3. INTERACTIVE COLUMN AND STEPPING PLOT -->
+                {% if dist.profile is defined and dist.profile|length > 0 %}
+                <div class="grid-2">
+                    
+                    <!-- Interactive Column -->
+                    <div class="glass-panel" style="display:flex; flex-direction:column; gap:10px; align-items:center; padding:1.25rem;">
+                        <h5 style="color:var(--primary); margin:0; text-align:center;">Colonne de Fractionnement</h5>
+                        
+                        <div style="display: flex; gap: 1rem; width:100%; align-items:center; justify-content:center;">
+                            <!-- Column SVG -->
+                            <svg id="main-column-svg" width="120" height="340" viewBox="0 0 120 340" style="overflow: visible;">
+                                <rect x="35" y="40" width="50" height="260" rx="6" fill="rgba(30,41,59,0.85)" stroke="#64748b" stroke-width="2" />
+                                
+                                <!-- Condenser top box -->
+                                <rect x="42" y="10" width="36" height="20" rx="3" fill="#1e40af" stroke="#3b82f6" stroke-width="1" />
+                                <path d="M 60 30 L 60 40" stroke="#3b82f6" stroke-width="1.5" />
+                                
+                                <!-- Plates loop -->
+                                {% set n_stages_tot = n_etages %}
+                                {% for stg in dist.profile %}
+                                    {% set stg_y_coord = 40 + (stg.stage / (n_stages_tot + 1)) * 260 %}
+                                    <line x1="37" y1="{{ stg_y_coord }}" x2="83" y2="{{ stg_y_coord }}" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" />
+                                    
+                                    <!-- Feed line indicator -->
+                                    {% if stg.stage == dist.feed_stage %}
+                                    <path d="M 5 {{ stg_y_coord }} L 33 {{ stg_y_coord }}" stroke="#f97316" stroke-width="2" fill="none" />
+                                    <circle cx="5" cy="{{ stg_y_coord }}" r="3" fill="#f97316" />
+                                    {% endif %}
+
+                                    <!-- Interactive Overlay Hitbox -->
+                                    <rect class="stage-sim-hitbox" x="35" y="{{ stg_y_coord - 8 }}" width="50" height="16" fill="rgba(59,130,246,0.05)" style="cursor:pointer;"
+                                          onclick="showDashboardStage({{ stg.stage }}, {{ stg.temp }}, {{ stg.x }}, {{ stg.y }}, {{ stg.L }}, {{ stg.V }}, '{{ stg.section }}')" 
+                                          onmouseover="this.style.fill='rgba(245,158,11,0.25)'"
+                                          onmouseout="this.style.fill='rgba(59,130,246,0.05)'" />
+                                {% endfor %}
+                                
+                                <!-- Reboiler bottom box -->
+                                <rect x="42" y="300" width="36" height="20" rx="3" fill="#ef4444" stroke="#f87171" stroke-width="1" />
+                                <path d="M 60 300 L 60 290" stroke="#f87171" stroke-width="1.5" />
+                            </svg>
+
+                            <!-- Tray detail display -->
+                            <div style="flex:1;">
+                                <div id="sim-tray-info-box" style="background: rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.05); padding:10px; border-radius:6px; font-size:0.8rem; min-height:160px; display:flex; flex-direction:column; justify-content:center;">
+                                    <p style="margin:0 0 5px 0; color:#cbd5e1; font-weight:bold; font-size:0.85rem; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:3px;">🔎 INFO PLATEAU</p>
+                                    <p style="margin:4px 0; color:#94a3b8;">Sélectionnez un plateau sur la colonne pour inspecter les grandeurs physiques correspondantes.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- 4. TEMPERATURE AND COMPOSITION GRADIENTS -->
+                <div class="grid-2">
+                    <div class="glass-panel" style="padding:1.25rem;">
+                        <h5 style="color:var(--primary); margin:0 0 10px 0;">Profil de Température</h5>
+                        <div id="sim-plotly-temp" style="height:260px;"></div>
+                    </div>
+                    <div class="glass-panel" style="padding:1.25rem;">
+                        <h5 style="color:var(--primary); margin:0 0 10px 0;">Profil de Composition</h5>
+                        <div id="sim-plotly-comp" style="height:260px;"></div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- 5. FUNDAMENTAL EQUATIONS & THERMO CHECKS -->
+                <div style="display:grid; grid-template-columns: 2fr 1fr; gap:1rem;">
+                    
+                    <!-- Mass Balance equations -->
+                    <div class="glass-panel" style="padding:1.25rem; font-size:0.85rem;">
+                        <h5 style="color:var(--primary); margin:0 0 10px 0;">Bilan de Matière Global et Composant</h5>
+                        <div style="display:flex; flex-direction:column; gap:8px;">
+                            <div style="background:rgba(255,255,255,0.02); padding:8px; border-radius:4px; font-family:monospace;">
+                                Bilan global : F = D + B<br>
+                                ➔ {{ dist.flows.F }} = {{ dist.flows.D }} + {{ dist.flows.B if dist.flows.B is defined else dist.flows.W }} kmol/h
+                            </div>
+                            <div style="background:rgba(255,255,255,0.02); padding:8px; border-radius:4px; font-family:monospace;">
+                                Bilan composé volatil : F*xF = D*xD + B*xB<br>
+                                ➔ {{ results.op_results.distillation.flows.F }} * {{ results.data.x1 }} = {{ results.op_results.distillation.flows.D }} * {{ results.op_results.distillation.lines.rectifying[0].x|round(3) }} + {{ results.op_results.distillation.flows.B }} * {{ results.op_results.distillation.lines.stripping[0].x|round(3) }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pedagogical information / quick theory -->
+                    <div class="glass-panel" style="padding:1.25rem; font-size:0.8rem; display:flex; flex-direction:column; justify-content:center; gap:5px;">
+                        <h5 style="color:var(--primary); margin:0;">📚 Mode Pédagogique</h5>
+                        {% if dist.N_min is defined %}<p style="margin:2px 0; color:#cbd5e1;">• <strong>Fenske</strong> : N_min = {{ dist.N_min }} plateaux</p>{% endif %}
+                        {% if dist.R_min is defined %}<p style="margin:2px 0; color:#cbd5e1;">• <strong>Underwood</strong> : R_min = {{ dist.R_min }} (taux minimal)</p>{% endif %}
+                        <p style="margin:2px 0; color:#cbd5e1;">• <strong>q-factor (état alim)</strong> : {% if results.op_results.distillation.q_info %}{{ results.op_results.distillation.q_info.state }}{% else %}—{% endif %}</p>
+                    </div>
+
+                </div>
+
+            </div>
+            {% endif %}
+            {% if 'absorption' in results.process_types %}
+            {% set abs = results.op_results.absorption %}
+            {% set abs_dash = abs.dashboard if abs.dashboard is defined else {} %}
+            <div id="tab-absorption" class="tab-content" style="display:flex; flex-direction:column; gap:1.5rem;">
+                {{ io_panel('Absorption G-L — entrées / sorties', '#34d399', abs.inputs, abs.outputs,
+                    {'G':'G mol/h','L':'L mol/h','y_in':'y in','y_out':'y out','x_in':'x in','T_gas_C':'T gaz','T_liq_C':'T liq','column_type':'Colonne'},
+                    {'n_stages':'Étages/NTU','yield_pct':'Rendement %','Z_m':'Z m','A':'Facteur A','x_out':'x out','m':'m'}) }}
+                <p style="font-size:0.7rem; color:#64748b; margin:0;">m : <strong>{{ abs.m_source }}</strong></p>
+                <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); padding: 8px 16px; border-radius: 8px; font-size: 0.8rem; color: #6ee7b7; text-align: center;">
+                    🛡️ <strong>Henry y*=mx</strong> · McCabe-Thiele / HTU-NTU · N<sub>A</sub>=K<sub>G</sub>a(y−y*) · bilans G(y<sub>in</sub>−y<sub>out</sub>)=L(x<sub>out</sub>−x<sub>in</sub>)
+                </div>
+
+                <div class="glass-panel" style="padding: 1.5rem; background: rgba(15, 23, 42, 0.4);">
+                    <h4 style="margin: 0 0 1rem 0; font-family: 'Outfit'; font-size: 1.25rem; font-weight: 800; color: var(--primary);">ABSORPTION G-L DASHBOARD</h4>
+                    <p style="font-size:0.75rem; color:#94a3b8; margin:0 0 10px 0;">
+                        Colonne {{ 'à garnissage' if abs.column_type == 'packed' else 'à plateaux' }} · {{ abs.absorption_type }} · {{ 'contre-courant' if abs.flow_direction == 'counter_current' else 'co-courant' }}
+                    </p>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
+                        <div style="background: rgba(30,41,59,0.5); border-radius:8px; padding:1rem; text-align:center; border-bottom:3px solid #10b981;">
+                            <span style="font-size:0.7rem; color:#94a3b8; text-transform:uppercase;">Rendement</span>
+                            <div style="font-size:1.5rem; font-weight:800; color:#fff;">{{ abs_dash.yield_pct|default(abs.outputs.yield_pct|default(abs.yield_pct|default('—'))) }} %</div>
+                        </div>
+                        <div style="background: rgba(30,41,59,0.5); border-radius:8px; padding:1rem; text-align:center; border-bottom:3px solid #3b82f6;">
+                            <span style="font-size:0.7rem; color:#94a3b8; text-transform:uppercase;">Étages / NTU</span>
+                            <div style="font-size:1.5rem; font-weight:800; color:#fff;">{{ abs_dash.n_stages|default(abs.outputs.n_stages|default(abs.n_stages|default('—'))) }}</div>
+                            <span style="font-size:0.65rem; color:#94a3b8;">Kremser {{ abs.n_kremser }} · MT {{ abs.n_mt }}</span>
+                        </div>
+                        <div style="background: rgba(30,41,59,0.5); border-radius:8px; padding:1rem; text-align:center; border-bottom:3px solid #f59e0b;">
+                            <span style="font-size:0.7rem; color:#94a3b8; text-transform:uppercase;">Hauteur Z (m)</span>
+                            <div style="font-size:1.5rem; font-weight:800; color:#fff;">{{ abs_dash.Z_m|default(abs.outputs.Z_m|default(abs.Z_m|default('—'))) }}</div>
+                        </div>
+                        <div style="background: rgba(30,41,59,0.5); border-radius:8px; padding:1rem; text-align:center; border-bottom:3px solid #a855f7;">
+                            <span style="font-size:0.7rem; color:#94a3b8; text-transform:uppercase;">Facteur A</span>
+                            <div style="font-size:1.5rem; font-weight:800; color:#fff;">{{ abs_dash.A_factor|default(abs.outputs.A|default(abs.A|default('—'))) }}</div>
+                            <span style="font-size:0.65rem; color:#94a3b8;">L/G = {{ abs_dash.L_over_G|default(abs.L_over_G|default('—')) }}</span>
+                        </div>
+                        <div style="background: rgba(30,41,59,0.5); border-radius:8px; padding:1rem; text-align:center; border-bottom:3px solid #ef4444;">
+                            <span style="font-size:0.7rem; color:#94a3b8; text-transform:uppercase;">y<sub>in</sub> → y<sub>out</sub></span>
+                            <div style="font-size:1.1rem; font-weight:800; color:#fff;">{{ abs_dash.y_in_pct|default((abs.inputs.y_in * 100)|round(2) if abs.inputs.y_in is defined else '—') }}% → {{ abs_dash.y_out_pct|default((abs.inputs.y_out * 100)|round(2) if abs.inputs.y_out is defined else '—') }}%</div>
+                        </div>
+                        <div style="background: rgba(30,41,59,0.5); border-radius:8px; padding:1rem; text-align:center; border-bottom:3px solid #22d3ee;">
+                            <span style="font-size:0.7rem; color:#94a3b8; text-transform:uppercase;">x<sub>out</sub> · absorbé</span>
+                            <div style="font-size:1.1rem; font-weight:800; color:#fff;">{{ "%.4f"|format(abs.x_out) }}</div>
+                            <span style="font-size:0.65rem; color:#94a3b8;">{{ "%.0f"|format(abs.moles_absorbed) }} mol/h</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-panel" style="padding:1.2rem;">
+                    <h4 style="margin:0 0 0.75rem 0; color:#fff;">🤖 Validation & hydraulique</h4>
+                    {% for warn in abs.warnings %}
+                    <div style="padding:0.6rem; margin-bottom:6px; border-radius:6px; font-size:0.8rem; border-left:4px solid {% if warn.type == 'danger' %}#ef4444{% elif warn.type == 'warning' %}#f59e0b{% elif warn.type == 'info' %}#38bdf8{% else %}#10b981{% endif %}; background:rgba(255,255,255,0.03); color:#f8fafc;">{{ warn.message }}</div>
+                    {% endfor %}
+                    <p style="margin-top:10px; font-size:0.85rem; color:#e2e8f0;"><strong>Conclusion :</strong> {{ abs.conclusion }}</p>
+                    <p style="font-size:0.75rem; color:#94a3b8; margin-top:8px;">
+                        v<sub>g</sub>={{ abs.hydrodynamics.v_gas_m_s }} m/s · flooding {{ (abs.hydrodynamics.flooding_frac * 100)|round }}% ·
+                        {% if abs.column_type == 'packed' %}HTU={{ abs.HTU }} m, NTU={{ abs.NTU }}{% else %}étages réels ≈ {{ abs.n_stages_real }}{% endif %}
+                    </p>
+                </div>
+
+                <div class="grid-2">
+                    <div class="glass-panel" style="padding:1.25rem;">
+                        <h5 style="color:var(--primary); margin:0 0 10px 0;">Colonne & profils</h5>
+                        <svg width="90" height="260" viewBox="0 0 90 260" style="display:block; margin:0 auto;">
+                            <rect x="25" y="20" width="40" height="220" rx="5" fill="rgba(30,41,59,0.9)" stroke="#64748b"/>
+                            {% for stg in abs.profile %}
+                            {% set yc = 30 + (stg.stage / (abs.profile|length)) * 200 %}
+                            <line x1="27" y1="{{ yc }}" x2="63" y2="{{ yc }}" stroke="rgba(52,211,153,0.4)" stroke-width="1.5"/>
+                            {% endfor %}
+                            <text x="45" y="12" text-anchor="middle" fill="#34d399" font-size="8">Gaz ↓ propre</text>
+                            <text x="45" y="252" text-anchor="middle" fill="#60a5fa" font-size="8">Gaz ↑ pollué</text>
+                        </svg>
+                        <p style="font-size:0.75rem; color:#94a3b8; text-align:center;">Simulation dynamique — profil x, y, T</p>
+                        <div id="plotly-abs-profile" style="height:200px; margin-top:10px;"></div>
+                    </div>
+                    <div class="glass-panel" style="padding:1.25rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                            <h5 style="margin:0; color:var(--primary);">McCabe-Thiele (y* = mx)</h5>
+                            <div style="display:flex; gap:6px;">
+                                <button type="button" onclick="if(typeof startAbsorptionAnimation==='function') startAbsorptionAnimation();" class="btn-primary" style="padding:4px 12px; font-size:0.75rem; border-radius:20px; background:var(--accent); border:none; color:#fff; cursor:pointer;">▶ Escalier</button>
+                                <button type="button" onclick="if(typeof resetAbsorptionMcCabe==='function') resetAbsorptionMcCabe();" class="btn-primary" style="padding:4px 12px; font-size:0.75rem; border-radius:20px; background:rgba(100,116,139,0.5); border:none; color:#fff; cursor:pointer;">↺</button>
+                            </div>
+                        </div>
+                        <div id="plotly-absorption" style="height:280px; background:rgba(0,0,0,0.2); border-radius:8px;"></div>
+                        <div id="plotly-abs-temp" style="height:160px; margin-top:10px;"></div>
+                    </div>
+                </div>
+
+                <div class="glass-panel" style="padding:1rem;">
+                    <h5 style="color:var(--primary); margin:0 0 8px 0;">Transfert de matière · N<sub>A</sub> = K<sub>G</sub>a(y − y*)</h5>
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap:8px; font-size:0.8rem; color:#cbd5e1;">
+                        <div>K<sub>G</sub>a = <strong>{{ abs.mass_transfer.K_G_a }}</strong></div>
+                        <div>N<sub>A</sub> = <strong>{{ abs.mass_transfer.N_A }}</strong></div>
+                        <div>y* = <strong>{{ abs.mass_transfer.y_star }}</strong></div>
+                        <div>η locale = <strong>{{ (abs.mass_transfer.eta_local * 100)|round(1) }}%</strong></div>
+                        <div>L<sub>min</sub> = <strong>{{ "%.0f"|format(abs.L_min) }}</strong> mol/h</div>
+                        <div>m(T) = <strong>{{ abs.m }}</strong></div>
+                    </div>
+                    <div id="plotly-abs-yield" style="height:180px; margin-top:12px;"></div>
+                </div>
+            </div>
+            {% endif %}
+            {% if 'extraction' in results.process_types %}
+            {% set ext = results.op_results.extraction %}
+            {% set ext_dash = ext.dashboard if ext.dashboard is defined else {} %}
+            {% set n_ext = ext.N_steps if ext.N_steps is defined else ext.n_stages %}
+            <div id="tab-extraction" class="tab-content" style="display:flex; flex-direction:column; gap:1.5rem;">
+                {{ io_panel('Extraction L-L — entrées / sorties', '#fbbf24', ext.inputs, ext.outputs,
+                    {'F':'F kg/h','S':'S kg/h','xF':'xF','xR':'xR','yS':'yS','solute':'Soluté','solvant':'Solvant'},
+                    {'n_stages':'Étages','n_kremser':'Kremser','yield_pct':'Rendement %','K':'K L-L','success':'OK'}) }}
+                <p style="font-size:0.7rem; color:#64748b; margin:0;">K : <strong>{{ ext.K_source }}</strong></p>
+
+                <div style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); padding: 8px 16px; border-radius: 8px; font-size: 0.8rem; color: #93c5fd; text-align: center;">
+                    🛡️ <strong>Message Scientifique :</strong> McCabe-Thiele L-L et Hunter-Nash (ternaire), point de mélange, Kremser — bilans de matière vérifiés automatiquement.
+                </div>
+
+                {% set sel = ext.solvent_selection if ext.solvent_selection is defined else results.solvent_selection %}
+                {% if sel and sel.name %}
+                <div class="glass-panel" style="padding: 1rem 1.25rem; background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.25);">
+                    <h4 style="margin:0 0 0.5rem 0; color:#fbbf24; font-size:1rem;">Solvant d'extraction</h4>
+                    <p style="margin:0; font-size:0.85rem; color:#e2e8f0;">
+                        <strong>{{ sel.name }}</strong>
+                        {% if sel.auto_selected %} — sélectionné automatiquement (Hansen){% else %} — choix manuel{% endif %}
+                        · K estimé = <strong>{{ sel.k_estimated }}</strong>
+                        · Score = {{ sel.score }}
+                        {% if sel.scientifically_valid %}<span style="color:#34d399;">✓ Validé scientifiquement</span>{% else %}<span style="color:#fbbf24;">⚠ Réserves</span>{% endif %}
+                    </p>
+                    <p style="margin:0.5rem 0 0; font-size:0.75rem; color:#94a3b8;">{{ sel.reason }}</p>
+                </div>
+                {% endif %}
+
+                <!-- DASHBOARD -->
+                <div class="glass-panel" style="padding: 1.5rem; background: rgba(15, 23, 42, 0.4);">
+                    <h4 style="margin: 0 0 1rem 0; font-family: 'Outfit'; font-size: 1.25rem; font-weight: 800; color: var(--primary);">EXTRACTION L-L DASHBOARD</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem;">
+                        <div style="background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 1rem; text-align: center; border-bottom: 3px solid #f59e0b;">
+                            <span style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase;">x<sub>F</sub> charge</span>
+                            <div style="font-family: 'Outfit'; font-size: 1.6rem; font-weight: 800; color: #fff; margin-top: 5px;">{{ ext_dash.xF_pct|default((ext.inputs.xF * 100)|round(2) if ext.inputs.xF is defined else '—') }} %</div>
+                        </div>
+                        <div style="background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 1rem; text-align: center; border-bottom: 3px solid #60a5fa;">
+                            <span style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase;">x<sub>R</sub> raffinat</span>
+                            <div style="font-family: 'Outfit'; font-size: 1.6rem; font-weight: 800; color: #fff; margin-top: 5px;">{{ ext_dash.xR_pct|default((ext.inputs.xR * 100)|round(2) if ext.inputs.xR is defined else '—') }} %</div>
+                        </div>
+                        <div style="background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 1rem; text-align: center; border-bottom: 3px solid #3b82f6;">
+                            <span style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase;">Étages théoriques</span>
+                            <div style="font-family: 'Outfit'; font-size: 1.6rem; font-weight: 800; color: #fff; margin-top: 5px;">{{ n_ext }}</div>
+                            <span style="font-size:0.65rem; color:#94a3b8;">Kremser = {{ ext.n_kremser }} | H-N = {{ ext.n_hn }}</span>
+                        </div>
+                        <div style="background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 1rem; text-align: center; border-bottom: 3px solid #10b981;">
+                            <span style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase;">Rendement</span>
+                            <div style="font-family: 'Outfit'; font-size: 1.6rem; font-weight: 800; color: #fff; margin-top: 5px;">{{ ext_dash.yield_pct|default(ext.outputs.yield_pct|default(ext.yield_pct|default('—'))) }} %</div>
+                        </div>
+                        <div style="background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 1rem; text-align: center; border-bottom: 3px solid #a855f7;">
+                            <span style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase;">S/F · E = K·S/F</span>
+                            <div style="font-family: 'Outfit'; font-size: 1.6rem; font-weight: 800; color: #fff; margin-top: 5px;">{{ ext_dash.S_over_F|default(ext.S_over_F|default('—')) }}</div>
+                            <span style="font-size:0.65rem; color:#94a3b8;">E = {{ ext_dash.E_factor|default(ext.E_factor|default('—')) }} · K = {{ ext.K }}</span>
+                        </div>
+                        <div style="background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 1rem; text-align: center; border-bottom: 3px solid #eab308;">
+                            <span style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase;">Point de mélange M</span>
+                            <div style="font-family: 'Outfit'; font-size: 1.6rem; font-weight: 800; color: #fff; margin-top: 5px;">{{ ext_dash.mixing_M|default(ext.mixing_M|default('—')) }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VALIDATION -->
+                <div class="glass-panel" style="background: rgba(15, 23, 42, 0.4); padding: 1.2rem;">
+                    <h4 style="margin: 0 0 0.75rem 0; font-family: 'Outfit'; font-size: 1.05rem; color: #fff;">🤖 VALIDATION & RECOMMANDATIONS</h4>
+                    <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                        {% for warn in ext.warnings %}
+                        <div style="padding: 0.75rem; border-radius: 6px; background: {% if warn.type == 'danger' %}rgba(239, 68, 68, 0.1){% elif warn.type == 'warning' %}rgba(245, 158, 11, 0.1){% else %}rgba(16, 185, 129, 0.1){% endif %}; border-left: 4px solid {% if warn.type == 'danger' %}#ef4444{% elif warn.type == 'warning' %}#f59e0b{% else %}#10b981{% endif %}; font-size: 0.8rem; color:#f8fafc;">
+                            {{ warn.message }}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <p style="font-size:0.9rem; color:#e2e8f0; margin-top:10px;"><strong>Conclusion :</strong> {{ ext.conclusion }}</p>
+                </div>
+
+                <!-- Colonne + Ternaire -->
+                <div class="grid-2">
+                    <div class="glass-panel" style="padding:1.25rem;">
+                        <h5 style="color:var(--primary); margin:0 0 10px 0;">Colonne d'extraction</h5>
+                        <div style="display:flex; gap:1rem; align-items:center; justify-content:center;">
+                            <svg width="100" height="300" viewBox="0 0 100 300">
+                                <rect x="30" y="30" width="40" height="240" rx="6" fill="rgba(30,41,59,0.85)" stroke="#64748b" stroke-width="2"/>
+                                {% for stg in ext.profile %}
+                                {% set y_coord = 40 + (stg.stage / (n_ext + 1)) * 220 %}
+                                <line x1="32" y1="{{ y_coord }}" x2="68" y2="{{ y_coord }}" stroke="rgba(255,255,255,0.25)" stroke-width="1.5"/>
+                                {% endfor %}
+                                <text x="50" y="20" text-anchor="middle" fill="#f87171" font-size="9">Extrait E ↑</text>
+                                <text x="50" y="290" text-anchor="middle" fill="#60a5fa" font-size="9">Raffinat R ↓</text>
+                            </svg>
+                            <div style="font-size:0.8rem; color:#94a3b8;">
+                                <p style="margin:0 0 6px 0;"><strong style="color:#60a5fa;">F</strong> = {{ ext.flows.F }} kg/h</p>
+                                <p style="margin:0 0 6px 0;"><strong style="color:#10b981;">S</strong> = {{ ext.flows.S }} kg/h</p>
+                                <p style="margin:0 0 6px 0;"><strong style="color:#f87171;">E</strong> = {{ ext.flows.E }} kg/h</p>
+                                <p style="margin:0;"><strong style="color:#f59e0b;">R</strong> = {{ ext.flows.R }} kg/h</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="glass-panel" style="padding:1.25rem; display:flex; flex-direction:column; gap:1rem;">
+                        <div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
+                                <h5 style="color:var(--primary); margin:0;">McCabe-Thiele (L-L)</h5>
+                                <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                                    <button type="button" onclick="if(typeof startExtractionMcCabeAnimation==='function') startExtractionMcCabeAnimation();" class="btn-primary" style="padding:4px 12px; font-size:0.75rem; border-radius:20px; background:var(--accent); border:none; color:#fff; cursor:pointer;">▶ Escalier</button>
+                                    <button type="button" onclick="if(typeof resetExtractionMcCabeChart==='function') resetExtractionMcCabeChart();" class="btn-primary" style="padding:4px 12px; font-size:0.75rem; border-radius:20px; background:rgba(100,116,139,0.5); border:1px solid rgba(255,255,255,0.15); color:#fff; cursor:pointer;">↺</button>
+                                </div>
+                            </div>
+                            <div id="sim-plotly-ext-mccabe" style="height:280px; width:100%; border-radius:8px; background:rgba(0,0,0,0.2);"></div>
+                            <p style="font-size:0.75rem; color:#94a3b8; line-height:1.4; margin:8px 0 0;">
+                                Équilibre L-L, droite opératoire, point M et marches théoriques (x / y).
+                            </p>
+                        </div>
+                        <div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                                <h5 style="color:var(--primary); margin:0;">Hunter-Nash (diagramme ternaire)</h5>
+                                <button onclick="if(typeof startTernaryAnimation==='function') startTernaryAnimation();" class="btn-primary" style="padding:4px 12px; font-size:0.75rem; border-radius:20px; background:var(--accent); border:none; color:#fff; cursor:pointer;">▶ Animer</button>
+                            </div>
+                            <div id="plotly-ternary" style="height:280px; width:100%; background:rgba(0,0,0,0.2); border-radius:8px;"></div>
+                            <p style="font-size:0.75rem; color:#94a3b8; line-height:1.4; margin:8px 0 0;">
+                                Courbe binodale, lignes opératoires et cordes d'équilibre sur le triangle soluté / diluant / solvant.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Profils -->
+                <div class="grid-2">
+                    <div class="glass-panel" style="padding:1.25rem;">
+                        <h5 style="color:var(--primary); margin:0 0 10px 0;">Profil de composition</h5>
+                        <div id="sim-plotly-ext-comp" style="height:260px;"></div>
+                    </div>
+                    <div class="glass-panel" style="padding:1.25rem; font-size:0.85rem;">
+                        <h5 style="color:var(--primary); margin:0 0 10px 0;">Bilans de matière</h5>
+                        <div style="background:rgba(255,255,255,0.02); padding:8px; border-radius:4px; font-family:monospace; margin-bottom:8px;">
+                            Global : F + S = R + E<br>
+                            ➔ {{ ext.flows.F }} + {{ ext.flows.S }} = {{ ext.flows.R }} + {{ ext.flows.E }} kg/h
+                        </div>
+                        <div style="background:rgba(255,255,255,0.02); padding:8px; border-radius:4px; font-family:monospace;">
+                            Soluté : F·xF + S·yS = R·xR + E·yE<br>
+                            ➔ {{ ext.flows.F }}×{{ ext.flows.xF }} + {{ ext.flows.S }}×{{ ext.flows.yS }} ≈
+                            {{ ext.flows.R }}×{{ ext.flows.xR }} + {{ ext.flows.E }}×{{ ext.flows.yE }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Table étages Hunter-Nash -->
+                {% if ext.stage_data %}
+                <div class="glass-panel" style="padding:1.25rem;">
+                    <h5 style="color:var(--accent); margin:0 0 10px 0;">Propriétés par étage (Hunter-Nash)</h5>
+                    <div style="overflow-x:auto;">
+                        <table style="width:100%; border-collapse:collapse; text-align:center; font-size:0.85rem;">
+                            <thead>
+                                <tr style="background:rgba(255,255,255,0.1);">
+                                    <th style="padding:8px;">Étage</th>
+                                    <th style="padding:8px; color:#f87171;">Extrait (soluté)</th>
+                                    <th style="padding:8px; color:#60a5fa;">Raffinat (soluté)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for stage in ext.stage_data %}
+                                <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                                    <td style="padding:6px; font-weight:bold;">{{ stage.stage }}</td>
+                                    <td style="padding:6px;">{{ "%.3f"|format(stage.extract.solute) }}</td>
+                                    <td style="padding:6px;">{{ "%.3f"|format(stage.raffinate.solute) }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="glass-panel" style="padding:1.25rem; font-size:0.8rem;">
+                    <h5 style="color:var(--primary); margin:0;">📚 Références méthodes</h5>
+                    <p style="margin:4px 0; color:#cbd5e1;">• <strong>McCabe-Thiele</strong> adapté L-L (marches équilibre / bilan)</p>
+                    <p style="margin:4px 0; color:#cbd5e1;">• <strong>Kremser</strong> : N = {{ ext.n_kremser }} (validation contre-courant)</p>
+                    <p style="margin:4px 0; color:#cbd5e1;">• <strong>Point de mélange</strong> : M = (F·xF + S·yS)/(F+S)</p>
+                    <p style="margin:4px 0; color:#cbd5e1;">• <strong>Hunter-Nash</strong> : {{ ext.n_hn }} étage(s) sur diagramme ternaire</p>
+                </div>
+
+            </div>
+            {% endif %}
+            {% if 'flash' in results.process_types %}
+            {% set fl = results.op_results.flash %}
+            <div id="tab-flash" class="tab-content" style="display:flex; flex-direction:column; gap:1rem;">
+                {{ io_panel('Flash — entrées / sorties', '#eab308', fl.inputs, fl.outputs,
+                    {'psi':'ψ cible','dp_kPa':'ΔP','T_C':'T','P_in_kPa':'P entrée','x_feed':'x₁'},
+                    {'flow_v_pct':'Vapeur %','flow_l_pct':'Liquide %','P_flash_kPa':'P flash','T_flash_C':'T flash'}) }}
+                <div class="glass-panel" style="padding:1.5rem; font-size:1rem;">
+                    <p>ψ = <strong>{{ fl.psi }}</strong> · T = <strong>{{ fl.t_flash }} °C</strong> · P = <strong>{{ fl.p_flash }} kPa</strong></p>
+                    <p>Phase vapeur : <strong>{{ fl.flow_v_pct if fl.flow_v_pct is defined else fl.flow_v }} %</strong> · Phase liquide : <strong>{{ fl.flow_l_pct if fl.flow_l_pct is defined else fl.flow_l }} %</strong></p>
+                </div>
+            </div>
+            {% endif %}
+            {% if 'pump' in results.process_types %}
+            {% set pu = results.op_results.pump %}
+            <div id="tab-pump" class="tab-content" style="display:flex; flex-direction:column; gap:1rem;">
+                {{ io_panel('Pompe — entrées / sorties', '#60a5fa', pu.inputs, pu.outputs,
+                    {'flow_m3_h':'Débit','P_in_kPa':'P in','P_out_kPa':'P out','efficiency':'η','fluid':'Fluide'},
+                    {'work_kW':'Puissance','delta_P_kPa':'ΔP','status':'Statut'}) }}
+                <div class="glass-panel" style="padding:1.5rem; font-size:1.1rem;">
+                    <p>Travail : <strong>{{ pu.work_kw }} kW</strong> · ΔP = <strong>{{ pu.delta_p }} kPa</strong></p>
+                </div>
+            </div>
+            {% endif %}
+            {% if 'compressor' in results.process_types %}
+            {% set co = results.op_results.compressor %}
+            <div id="tab-compressor" class="tab-content" style="display:flex; flex-direction:column; gap:1rem;">
+                {{ io_panel('Compresseur — entrées / sorties', '#a78bfa', co.inputs, co.outputs,
+                    {'flow_m3_h':'Débit','T_in_C':'T in','P_in_kPa':'P in','P_out_kPa':'P out','efficiency':'η'},
+                    {'work_kW':'Puissance','T_out_C':'T out isentrope'}) }}
+                <div class="glass-panel" style="padding:1.5rem; font-size:1.1rem;">
+                    <p>Puissance : <strong>{{ co.work_kw }} kW</strong> · T<sub>sortie</sub> = <strong>{{ co.t_out }} °C</strong></p>
+                </div>
+            </div>
+            {% endif %}
+            {% if 'heat_exchanger' in results.process_types %}
+            {% set hx = results.op_results.heat_exchanger %}
+            <div id="tab-hex" class="tab-content" style="display:flex; flex-direction:column; gap:1rem;">
+                {{ io_panel('Échangeur — entrées / sorties', '#f472b6', hx.inputs, hx.outputs,
+                    {'T_in_hot_C':'T in chaud','T_out_hot_C':'T out chaud','T_in_cold_C':'T in froid','T_out_cold_C':'T out froid','flow_hot_kg_h':'ṁ chaud','Cp_kJ_kgK':'Cp'},
+                    {'duty_kW':'Q chaud','duty_cold_kW':'Q froid','delta_T_hot_C':'ΔT chaud','balance_ok':'Bilan OK'}) }}
+                <div class="glass-panel" style="padding:1.5rem; font-size:1.1rem;">
+                    <p>Puissance thermique (côté chaud) : <strong>{{ hx.duty_kw }} kW</strong></p>
+                    <p>ΔT chaud = <strong>{{ hx.delta_T_hot_C }} °C</strong> · ΔT froid = <strong>{{ hx.delta_T_cold_C }} °C</strong></p>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- ANNEXE / RECHERCHE DOCUMENTAIRE -->
+            <div class="glass-panel research-panel" id="annexe-recherche">
+                <div class="research-header">
+                    <div>
+                        <h4>Annexe / Recherche</h4>
+                        <p>Liens de recherche generes automatiquement pour expliquer le procede simule.</p>
+                    </div>
+                    <button type="button" class="research-refresh-btn" onclick="buildResearchLinks()">Actualiser</button>
+                </div>
+
+                <div class="research-query-box">
+                    <label for="researchQueryInput">Sujet de recherche</label>
+                    <div class="research-query-row">
+                        <input id="researchQueryInput" type="text" value="{{ (results.process_types|join(' ') ~ ' ' ~ (results.components|join(' ')))|trim }}" placeholder="Ex: distillation benzene toluene">
+                        <button type="button" onclick="buildResearchLinks()">Chercher</button>
+                    </div>
+                </div>
+
+                <div class="research-grid" id="researchLinks"></div>
+            </div>
+            
+            <style>
+                .flash-drum { border-radius: 50% !important; width: 220px !important; }
+                .extraction-column { background: linear-gradient(180deg, rgba(234, 179, 8, 0.2), rgba(59, 130, 246, 0.2)) !important; }
+                .research-panel { padding:1.25rem; background:rgba(15,23,42,0.45); display:flex; flex-direction:column; gap:1rem; }
+                .research-header { display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; }
+                .research-header h4 { margin:0; color:#fff; font-family:'Outfit'; font-size:1.1rem; }
+                .research-header p { margin:0.25rem 0 0 0; color:#94a3b8; font-size:0.8rem; }
+                .research-refresh-btn,
+                .research-query-row button { border:none; border-radius:6px; background:#3b82f6; color:#fff; padding:0.65rem 0.9rem; cursor:pointer; font-weight:700; white-space:nowrap; }
+                .research-query-box { display:flex; flex-direction:column; gap:0.45rem; }
+                .research-query-box label { color:#cbd5e1; font-size:0.78rem; font-weight:700; }
+                .research-query-row { display:flex; gap:0.6rem; }
+                .research-query-row input { flex:1; min-width:0; background:rgba(2,6,23,0.55); border:1px solid rgba(148,163,184,0.25); color:#f8fafc; border-radius:6px; padding:0.7rem 0.85rem; outline:none; }
+                .research-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:0.8rem; }
+                .research-card { display:flex; flex-direction:column; gap:0.45rem; padding:0.95rem; border-radius:8px; background:rgba(30,41,59,0.55); border:1px solid rgba(148,163,184,0.16); text-decoration:none; color:#e2e8f0; min-height:120px; }
+                .research-card:hover { border-color:rgba(96,165,250,0.65); background:rgba(30,64,175,0.22); }
+                .research-card strong { color:#fff; font-size:0.92rem; }
+                .research-card span { color:#94a3b8; font-size:0.76rem; line-height:1.35; }
+                .research-tag { width:max-content; color:#bfdbfe !important; background:rgba(59,130,246,0.16); border:1px solid rgba(59,130,246,0.28); border-radius:999px; padding:0.18rem 0.5rem; font-size:0.68rem !important; }
+                .research-empty { grid-column:1 / -1; padding:0.95rem; border-radius:8px; background:rgba(30,41,59,0.55); border:1px solid rgba(148,163,184,0.16); color:#cbd5e1; font-size:0.84rem; }
+                @media (max-width: 640px) {
+                    .research-header,
+                    .research-query-row { flex-direction:column; }
+                    .research-refresh-btn,
+                    .research-query-row button { width:100%; }
+                }
+            </style>
+        </section>
+    </main>
+</div>
+
+<!-- CHATBOT UI -->
+<style>
+    .chat-btn { position: fixed; bottom: 30px; right: 30px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); border: none; border-radius: 50%; width: 60px; height: 60px; box-shadow: 0 10px 25px rgba(59, 130, 246, 0.5); color: white; font-size: 1.5rem; cursor: pointer; z-index: 1000; transition: 0.3s; }
+    .chat-btn:hover { transform: scale(1.1); }
+    .chat-window { position: fixed; bottom: 100px; right: 30px; width: 350px; height: 450px; background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); z-index: 1000; display: flex; flex-direction: column; overflow: hidden; transform: translateY(20px); opacity: 0; pointer-events: none; transition: 0.3s; }
+    .chat-window.open { transform: translateY(0); opacity: 1; pointer-events: auto; }
+    .chat-header { background: rgba(255,255,255,0.05); padding: 1rem; border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: bold; color: #fff; display: flex; justify-content: space-between; align-items: center; }
+    .chat-body { flex: 1; padding: 1rem; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+    .chat-msg { padding: 10px 15px; border-radius: 15px; max-width: 85%; font-size: 0.9rem; word-wrap: break-word; }
+    .msg-ai { background: rgba(59, 130, 246, 0.2); color: #cbd5e1; align-self: flex-start; border-bottom-left-radius: 2px; }
+    .msg-user { background: #3b82f6; color: #fff; align-self: flex-end; border-bottom-right-radius: 2px; }
+    .chat-input { display: flex; padding: 10px; background: rgba(255,255,255,0.02); border-top: 1px solid rgba(255,255,255,0.1); }
+    .chat-input input { flex: 1; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); padding: 8px 12px; border-radius: 20px; color: white; outline: none; }
+    .chat-input button { background: #3b82f6; color: white; border: none; padding: 8px 15px; border-radius: 20px; margin-left: 10px; cursor: pointer; }
+</style>
+
+<button class="chat-btn" onclick="toggleChat()">🤖</button>
+<div class="chat-window" id="chatWindow">
+    <div class="chat-header">
+        <span>ProcessInsight Copilot</span>
+        <button onclick="toggleChat()" style="background:transparent; border:none; color:white; cursor:pointer;">✖</button>
+    </div>
+    <div class="chat-body" id="chatBody">
+        <div class="chat-msg msg-ai" id="welcome-msg">Bonjour ! Je suis votre assistant expert. J'analyse vos résultats... Posez-moi n'importe quelle question sur cette simulation !</div>
+    </div>
+    <div class="chat-input">
+        <input type="text" id="chatInput" placeholder="Posez une question sur le procédé..." onkeypress="if(event.key === 'Enter') sendChatMessage()">
+        <button onclick="sendChatMessage()">&#10148;</button>
+    </div>
+</div>
+
+<script>
+    function openTab(evt, tabName) {
+        let i, tabcontent, tablinks;
+        tabcontent = document.getElementsByClassName("tab-content");
+        for (i = 0; i < tabcontent.length; i++) tabcontent[i].classList.remove("active");
+        tablinks = document.getElementsByClassName("tab-btn");
+        for (i = 0; i < tablinks.length; i++) tablinks[i].classList.remove("active");
+        document.getElementById(tabName).classList.add("active");
+        evt.currentTarget.classList.add("active");
+        if (tabName === 'tab-mccabe') {
+            const mccabePlot = document.getElementById('sim-plotly-mccabe-main');
+            if (mccabePlot && typeof Plotly !== 'undefined') {
+                setTimeout(() => Plotly.Plots.resize('sim-plotly-mccabe-main'), 100);
+            }
+        }
+        if (tabName === 'tab-extraction') {
+            ['sim-plotly-ext-mccabe', 'plotly-ternary', 'sim-plotly-ext-comp'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el && typeof Plotly !== 'undefined') setTimeout(() => Plotly.Plots.resize(id), 100);
+            });
+        }
+        if (tabName === 'tab-absorption') {
+            ['plotly-absorption', 'plotly-abs-profile', 'plotly-abs-temp', 'plotly-abs-yield'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el && typeof Plotly !== 'undefined') setTimeout(() => Plotly.Plots.resize(id), 100);
+            });
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const raw = {{ results.data | tojson }};
+        const c1_name = "{{ results.components[0] if results.components | length > 0 else 'Gaz absorbé' }}";
+        
+        Chart.defaults.color = '#94a3b8';
+        Chart.defaults.font.family = 'Inter';
+
+        // 1. Chart XY (Equilibre L-V)
+        new Chart(document.getElementById('chartXY').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: raw.diagrams.xy.map(d=>d.x),
+                datasets: [
+                    { label: 'Idéal', data: raw.diagrams.xy.map(d=>d.x), borderColor: '#64748b', borderDash: [5,5], pointRadius:0 },
+                    { label: 'y = f(x)', data: raw.diagrams.xy.map(d=>d.y), borderColor: '#3b82f6', tension:0.4, pointRadius:0 }
+                ]
+            },
+            options:{ responsive:true, maintainAspectRatio:false, plugins:{title:{display:true, text:'Diagramme d’équilibre x-y (ELV)'}} }
+        });
+
+        // 2. Chart T-x-y
+        new Chart(document.getElementById('chartTXY').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: raw.diagrams.txy.map(d=>d.x),
+                datasets: [
+                    { label: 'Courbe Bulle (Liquide)', data: raw.diagrams.txy.map(d=>d.bubble), borderColor: '#f59e0b', tension:0.4, pointRadius:0 },
+                    { label: 'Courbe Rosée (Vapeur)', data: raw.diagrams.txy.map(d=>d.dew), borderColor: '#10b981', tension:0.4, pointRadius:0 }
+                ]
+            },
+            options:{ responsive:true, maintainAspectRatio:false, plugins:{title:{display:true, text:'Diagramme T-x-y (Isobarique)'}} }
+        });
+
+        // 6. Effet P (Z factor tracking)
+        new Chart(document.getElementById('chartEffectP').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: raw.diagrams.effect_p.map(d=>(d.p/100).toFixed(1) + ' bar'),
+                datasets: [{ label: 'Facteur de Compressibilité (Z)', data: raw.diagrams.effect_p.map(d=>d.z), borderColor: '#f59e0b', pointRadius:4 }]
+            },
+            options:{ responsive:true, maintainAspectRatio:false, plugins:{title:{display:true, text:'Influence de la Pression (Idéalité du Gaz)'}} }
+        });
+
+        // 7. McCabe-Thiele — graphique interactif + animation
+        {% if ('distillation' in results.process_types) and results.op_results and results.op_results.distillation %}
+        const mc = {{ results.op_results.distillation | tojson | safe }};
+        const xyPoints = mc.xy_curve || raw.diagrams.xy;
+        const mcStagesRaw = mc.stages_graphics || mc.stages || [];
+        const nStagesLabel = mc.N_steps !== undefined ? mc.N_steps : mc.n_stages;
+
+        function downsampleMcCabeStages(stages, maxPts) {
+            if (!stages || stages.length <= maxPts) return stages;
+            const out = [];
+            const step = (stages.length - 1) / (maxPts - 1);
+            for (let i = 0; i < maxPts; i++) {
+                out.push(stages[Math.min(stages.length - 1, Math.round(i * step))]);
+            }
+            return out;
+        }
+
+        function buildMcCabeStepLines(stages) {
+            const sx = [], sy = [];
+            for (let i = 0; i < stages.length - 1; i++) {
+                sx.push(stages[i].x, stages[i + 1].x);
+                sy.push(stages[i].y, stages[i].y);
+            }
+            if (stages.length) {
+                sx.push(stages[stages.length - 1].x);
+                sy.push(stages[stages.length - 1].y);
+            }
+            return { x: sx, y: sy };
+        }
+
+        const mcStages = downsampleMcCabeStages(mcStagesRaw, 80);
+        const stepLines = buildMcCabeStepLines(mcStages);
+        const scatterStagesChart = [];
+        for (let i = 0; i < mcStages.length - 1; i++) {
+            scatterStagesChart.push({ x: mcStages[i].x, y: mcStages[i].y });
+        }
+        if (mcStages.length) scatterStagesChart.push(mcStages[mcStages.length - 1]);
+
+        const mccabeBaseTraces = [
+            {
+                x: xyPoints.map(d => d.x),
+                y: xyPoints.map(d => d.y),
+                type: 'scatter', mode: 'lines', name: 'Équilibre L-V',
+                line: { color: '#3b82f6', width: 2.5 }
+            },
+            {
+                x: [0, 1], y: [0, 1],
+                type: 'scatter', mode: 'lines', name: 'y = x',
+                line: { color: '#64748b', dash: 'dash', width: 1.5 }
+            }
+        ];
+        if (mc.lines && mc.lines.rectifying) {
+            mccabeBaseTraces.push({
+                x: mc.lines.rectifying.map(d => d.x),
+                y: mc.lines.rectifying.map(d => d.y),
+                type: 'scatter', mode: 'lines', name: 'Rectification',
+                line: { color: '#10b981', width: 2 }
+            });
+        }
+        if (mc.lines && mc.lines.stripping) {
+            mccabeBaseTraces.push({
+                x: mc.lines.stripping.map(d => d.x),
+                y: mc.lines.stripping.map(d => d.y),
+                type: 'scatter', mode: 'lines', name: 'Épuisement',
+                line: { color: '#f59e0b', width: 2 }
+            });
+        }
+        if (mc.lines && mc.lines.q_line && mc.lines.q_line.length >= 2) {
+            mccabeBaseTraces.push({
+                x: mc.lines.q_line.map(d => d.x),
+                y: mc.lines.q_line.map(d => d.y),
+                type: 'scatter', mode: 'lines', name: 'q-line',
+                line: { color: '#ef4444', width: 2 }
+            });
+        }
+
+        const layoutMcCabe = {
+            title: { text: 'McCabe-Thiele — ' + nStagesLabel + ' étage(s) théorique(s)', font: { color: '#f8fafc', size: 14 } },
+            margin: { t: 45, b: 45, l: 50, r: 20 },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0.2)',
+            showlegend: true,
+            legend: { x: 0, y: 1.12, orientation: 'h', font: { color: '#94a3b8', size: 10 } },
+            xaxis: { title: 'x (liquide)', gridcolor: 'rgba(255,255,255,0.08)', color: '#94a3b8', range: [0, 1] },
+            yaxis: { title: 'y (vapeur)', gridcolor: 'rgba(255,255,255,0.08)', color: '#94a3b8', range: [0, 1] }
+        };
+
+        const stepsTraceFull = {
+            x: stepLines.x,
+            y: stepLines.y,
+            type: 'scatter',
+            mode: 'lines+markers',
+            name: 'Étages (' + nStagesLabel + ')',
+            line: { color: '#a855f7', width: 2.5 },
+            marker: { color: '#eab308', size: 6 }
+        };
+
+        window.resetDistillationMcCabeChart = function() {
+            Plotly.react('sim-plotly-mccabe-main', [...mccabeBaseTraces, stepsTraceFull], layoutMcCabe);
+        };
+        resetDistillationMcCabeChart();
+
+        const chartMcCabeEl = document.getElementById('chartMcCabe');
+        if (chartMcCabeEl) {
+            const ds = [{ label: 'Équilibre x-y', data: xyPoints, borderColor: '#3b82f6', showLine: true, pointRadius: 0, tension: 0.35 }];
+            ds.push({ label: 'y=x', data: [{x:0,y:0},{x:1,y:1}], borderColor: '#64748b', showLine: true, borderDash: [5,5], pointRadius: 0 });
+            if (mc.lines) {
+                if (mc.lines.rectifying) ds.push({ label: 'Rectification', data: mc.lines.rectifying, borderColor: '#10b981', showLine: true, pointRadius: 0 });
+                if (mc.lines.stripping) ds.push({ label: 'Épuisement', data: mc.lines.stripping, borderColor: '#f59e0b', showLine: true, pointRadius: 0 });
+                if (mc.lines.q_line) ds.push({ label: 'q-line', data: mc.lines.q_line, borderColor: '#ef4444', showLine: true, pointRadius: 0 });
+            }
+            ds.push({ label: 'Étages (' + nStagesLabel + ')', data: scatterStagesChart, borderColor: '#a855f7', backgroundColor: '#eab308', showLine: true, pointRadius: 4 });
+            new Chart(chartMcCabeEl.getContext('2d'), {
+                type: 'scatter',
+                data: { datasets: ds },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { title: { display: true, text: 'McCabe-Thiele (vue Chart.js)' } },
+                    scales: { x: { min: 0, max: 1, title: { display: true, text: 'x' } }, y: { min: 0, max: 1, title: { display: true, text: 'y' } } }
+                }
+            });
+        }
+
+        let distMcCabeAnimTimer = null;
+        window.startDistillationMcCabeAnimation = function() {
+            if (distMcCabeAnimTimer) clearTimeout(distMcCabeAnimTimer);
+            const frames = [];
+            const sx = [], sy = [];
+            for (let i = 0; i < mcStages.length; i++) {
+                if (i > 0) {
+                    sx.push(mcStages[i - 1].x, mcStages[i].x);
+                    sy.push(mcStages[i - 1].y, mcStages[i - 1].y);
+                }
+                sx.push(mcStages[i].x);
+                sy.push(mcStages[i].y);
+                frames.push({
+                    name: 'step' + i,
+                    data: mccabeBaseTraces.concat([{
+                        x: sx.slice(),
+                        y: sy.slice(),
+                        type: 'scatter',
+                        mode: 'lines+markers',
+                        name: 'Étages (construction)',
+                        line: { color: '#a855f7', width: 2.5 },
+                        marker: { color: '#eab308', size: 7 }
+                    }])
+                });
+            }
+            if (!frames.length) return;
+            Plotly.react('sim-plotly-mccabe-main', frames[0].data, layoutMcCabe);
+            let idx = 0;
+            function playFrame() {
+                if (idx >= frames.length) {
+                    resetDistillationMcCabeChart();
+                    return;
+                }
+                Plotly.react('sim-plotly-mccabe-main', frames[idx].data, layoutMcCabe);
+                idx++;
+                distMcCabeAnimTimer = setTimeout(playFrame, 280);
+            }
+            playFrame();
+        };
+
+        window.showDashboardStage = function(stageNum, temp, x, y, L, V, section) {
+            const container = document.getElementById('sim-tray-info-box');
+            if (!container) return;
+            container.innerHTML = `
+                <p style="margin:0 0 5px 0; color:#10b981; font-weight:bold; font-size:0.85rem; border-bottom:1px solid rgba(16,185,129,0.2); padding-bottom:3px;">
+                    PLATEAU N°${stageNum}
+                </p>
+                <div style="display:flex; flex-direction:column; gap:4px; margin-top:5px; font-family:monospace;">
+                    <div><strong>Section:</strong> <span style="color:#f59e0b;">${section}</span></div>
+                    <div><strong>Température:</strong> <span style="color:#f87171;">${temp.toFixed(1)} °C</span></div>
+                    <div><strong>x (${c1_name}):</strong> <span style="color:#60a5fa;">${x.toFixed(4)}</span></div>
+                    <div><strong>y (${c1_name}):</strong> <span style="color:#34d399;">${y.toFixed(4)}</span></div>
+                    <div><strong>Débit L:</strong> <span>${L.toFixed(1)} kmol/h</span></div>
+                    <div><strong>Débit V:</strong> <span>${V.toFixed(1)} kmol/h</span></div>
+                </div>`;
+        };
+
+        if (mc.profile && mc.profile.length > 0) {
+            const feedIdx = Math.min(mc.profile.length - 1, Math.max(0, (mc.feed_stage || 1) - 1));
+            const feedStg = mc.profile[feedIdx];
+            showDashboardStage(feedStg.stage, feedStg.temp, feedStg.x, feedStg.y, feedStg.L, feedStg.V, feedStg.section);
+        }
+
+        if (mc.profile && mc.profile.length > 0) {
+        const traceTemp = {
+            x: mc.profile.map(p=>p.stage),
+            y: mc.profile.map(p=>p.temp),
+            type: 'scatter',
+            mode: 'lines+markers',
+            name: 'Température (°C)',
+            line: { color: '#f87171', width: 2.5 },
+            marker: { color: '#ef4444', size: 6 }
+        };
+        const layoutTemp = {
+            margin: { t: 20, b: 35, l: 40, r: 15 },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0.2)',
+            xaxis: { title: 'Numéro de Plateau (Haut -> Bas)', gridcolor: 'rgba(255,255,255,0.05)', color: '#94a3b8' },
+            yaxis: { title: 'Température (°C)', gridcolor: 'rgba(255,255,255,0.05)', color: '#94a3b8' }
+        };
+        Plotly.newPlot('sim-plotly-temp', [traceTemp], layoutTemp);
+
+        // Plotly Composition Profile
+        const traceCompX = {
+            x: mc.profile.map(p=>p.stage),
+            y: mc.profile.map(p=>p.x),
+            type: 'scatter',
+            mode: 'lines+markers',
+            name: 'x (Liquide)',
+            line: { color: '#60a5fa', width: 2 },
+            marker: { color: '#3b82f6', size: 6 }
+        };
+        const traceCompY = {
+            x: mc.profile.map(p=>p.stage),
+            y: mc.profile.map(p=>p.y),
+            type: 'scatter',
+            mode: 'lines+markers',
+            name: 'y (Vapeur)',
+            line: { color: '#34d399', width: 2 },
+            marker: { color: '#10b981', size: 6 }
+        };
+        const layoutComp = {
+            margin: { t: 20, b: 35, l: 40, r: 15 },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0.2)',
+            legend: { font: { color: '#94a3b8', size: 9 } },
+            xaxis: { title: 'Numéro de Plateau (Haut -> Bas)', gridcolor: 'rgba(255,255,255,0.05)', color: '#94a3b8' },
+            yaxis: { title: 'Fraction molaire', gridcolor: 'rgba(255,255,255,0.05)', color: '#94a3b8', range: [0, 1] }
+        };
+        Plotly.newPlot('sim-plotly-comp', [traceCompX, traceCompY], layoutComp);
+        }
+        {% endif %}
+
+        // 8. Ternary Diagram (Plotly)
+        {% if ('extraction' in results.process_types) and results.op_results and results.op_results.extraction %}
+        const ext = {{ results.op_results.extraction | tojson | safe }};
+        window.extReportData = {
+            process: 'extraction',
+            conclusion: ext.conclusion,
+            n_stages: ext.n_stages,
+            n_kremser: ext.n_kremser,
+            yield_pct: ext.yield_pct,
+            K: ext.K,
+            validation_message: ext.validation_message
+        };
+
+        const binodalTrace = {
+            type: 'scatterternary',
+            mode: 'lines',
+            a: ext.binodal.map(d => d.solute),
+            b: ext.binodal.map(d => d.diluent),
+            c: ext.binodal.map(d => d.solvent),
+            line: { color: '#3b82f6', width: 2 },
+            name: 'Courbe Binodale'
+        };
+
+        // Lignes principales: F->E1 et S->Rn passant par P
+        const poleLine1 = {
+            type: 'scatterternary',
+            mode: 'lines',
+            a: [ext.points.pole.solute, ext.points.extract.solute],
+            b: [ext.points.pole.diluent, ext.points.extract.diluent],
+            c: [ext.points.pole.solvent, ext.points.extract.solvent],
+            line: { color: '#ef4444', width: 2 },
+            name: 'Pôle - Extrait'
+        };
+        const poleLine2 = {
+            type: 'scatterternary',
+            mode: 'lines',
+            a: [ext.points.pole.solute, ext.points.solvent.solute],
+            b: [ext.points.pole.diluent, ext.points.solvent.diluent],
+            c: [ext.points.pole.solvent, ext.points.solvent.solvent],
+            line: { color: '#10b981', width: 2 },
+            name: 'Pôle - Solvant'
+        };
+
+        const pointsTrace = {
+            type: 'scatterternary',
+            mode: 'markers+text',
+            a: [ext.points.feed.solute, ext.points.solvent.solute, ext.points.raffinate.solute, ext.points.extract.solute, ext.points.mixture.solute, ext.points.pole.solute],
+            b: [ext.points.feed.diluent, ext.points.solvent.diluent, ext.points.raffinate.diluent, ext.points.extract.diluent, ext.points.mixture.diluent, ext.points.pole.diluent],
+            c: [ext.points.feed.solvent, ext.points.solvent.solvent, ext.points.raffinate.solvent, ext.points.extract.solvent, ext.points.mixture.solvent, ext.points.pole.solvent],
+            text: ['Charge (F)', 'Solvant (S)', 'Raffinat cible (Rn)', 'Extrait (E1)', 'Mélange (M)', 'Pôle (P)'],
+            textposition: 'top center',
+            marker: { size: 10, color: ['#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#a855f7', '#fff'] },
+            name: 'Points Clés'
+        };
+
+        const ternaryLayout = {
+            ternary: {
+                sum: 1,
+                aaxis: { title: 'Soluté (C)', titlefont: { color: '#fff' }, tickfont: { color: '#94a3b8' } },
+                baxis: { title: 'Diluant (A)', titlefont: { color: '#fff' }, tickfont: { color: '#94a3b8' } },
+                caxis: { title: 'Solvant (B)', titlefont: { color: '#fff' }, tickfont: { color: '#94a3b8' } },
+                bgcolor: 'rgba(0,0,0,0)'
+            },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            showlegend: false,
+            margin: { l: 0, r: 0, b: 0, t: 50 },
+            transition: { duration: 500, easing: 'cubic-in-out' }
+        };
+
+        // Fonction d'animation
+        let animTimer = null;
+        window.startTernaryAnimation = function() {
+            if(animTimer) clearTimeout(animTimer);
+            
+            // On réinitialise le plot
+            Plotly.react('plotly-ternary', [binodalTrace, poleLine1, poleLine2, pointsTrace], ternaryLayout);
+            
+            let stageCount = 0;
+            let isTieLine = true;
+            
+            function stepAnimation() {
+                if(stageCount >= ext.tie_lines.length) return; // Fini
+                
+                if(isTieLine) {
+                    const tl = ext.tie_lines[stageCount];
+                    const trace = {
+                        type: 'scatterternary',
+                        mode: 'lines+markers',
+                        a: tl.map(d => d.solute),
+                        b: tl.map(d => d.diluent),
+                        c: tl.map(d => d.solvent),
+                        line: { color: '#f59e0b', width: 2 },
+                        marker: { size: 6, color: '#f59e0b' },
+                        name: 'Étage ' + (stageCount+1)
+                    };
+                    Plotly.addTraces('plotly-ternary', trace);
+                    isTieLine = false;
+                    animTimer = setTimeout(stepAnimation, 800); // Pause
+                } else {
+                    if(stageCount < ext.operating_lines.length) {
+                        const ol = ext.operating_lines[stageCount];
+                        const trace = {
+                            type: 'scatterternary',
+                            mode: 'lines',
+                            a: ol.map(d => d.solute),
+                            b: ol.map(d => d.diluent),
+                            c: ol.map(d => d.solvent),
+                            line: { color: 'rgba(255,255,255,0.6)', width: 1.5, dash: 'dash' }
+                        };
+                        Plotly.addTraces('plotly-ternary', trace);
+                    }
+                    isTieLine = true;
+                    stageCount++;
+                    animTimer = setTimeout(stepAnimation, 800);
+                }
+            }
+            
+            // Démarrer la boucle après un court délai
+            animTimer = setTimeout(stepAnimation, 1000);
+        };
+
+        Plotly.newPlot('plotly-ternary', [binodalTrace, poleLine1, poleLine2, pointsTrace], ternaryLayout);
+
+        // McCabe-Thiele L-L (style distillation)
+        const dxy = ext.diagram_xy || {};
+        const xyCurve = ext.xy_curve || dxy.equilibrium || [];
+        const extMcStagesRaw = ext.stages_graphics || dxy.stages || [];
+        const nExtLabel = ext.N_steps !== undefined ? ext.N_steps : ext.n_stages;
+
+        const eqTrExt = {
+            x: xyCurve.map(p => p.x), y: xyCurve.map(p => p.y),
+            mode: 'lines', name: 'Équilibre L-L', line: { color: '#10b981', width: 2 }
+        };
+        const opTrExt = {
+            x: (dxy.operating_line || ext.lines?.operating || []).map(p => p.x),
+            y: (dxy.operating_line || ext.lines?.operating || []).map(p => p.y),
+            mode: 'lines', name: 'Droite opératoire', line: { color: '#3b82f6', width: 2, dash: 'dash' }
+        };
+        const mPt = dxy.mixing_point || ext.mixing_point;
+        const mTrExt = {
+            x: [mPt.x], y: [mPt.y], mode: 'markers+text', text: ['M'],
+            textposition: 'top center', name: 'Mélange', marker: { size: 12, color: '#a855f7' }
+        };
+        const stFullExt = {
+            x: extMcStagesRaw.map(p => p.x), y: extMcStagesRaw.map(p => p.y),
+            mode: 'lines', name: 'Étages', line: { color: '#ef4444', width: 2, shape: 'hv' }
+        };
+        const layoutExtMcCabe = {
+            title: { text: 'McCabe-Thiele L-L — ' + nExtLabel + ' étage(s)', font: { color: '#f8fafc', size: 14 } },
+            paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(255,255,255,0.05)',
+            xaxis: { title: 'x (raffinat)', range: [0, 1], gridcolor: 'rgba(255,255,255,0.1)', tickfont: { color: '#cbd5e1' } },
+            yaxis: { title: 'y (extrait)', range: [0, 1], gridcolor: 'rgba(255,255,255,0.1)', tickfont: { color: '#cbd5e1' } },
+            font: { color: '#f8fafc' }, legend: { bgcolor: 'rgba(0,0,0,0.5)' }
+        };
+        const extMcCabeBase = [eqTrExt, opTrExt, mTrExt, stFullExt];
+        let extAnimTimer = null;
+        window.resetExtractionMcCabeChart = function() {
+            Plotly.react('sim-plotly-ext-mccabe', extMcCabeBase, layoutExtMcCabe);
+        };
+        resetExtractionMcCabeChart();
+        window.startExtractionMcCabeAnimation = function() {
+            if (extAnimTimer) clearTimeout(extAnimTimer);
+            const frames = [];
+            for (let i = 2; i <= extMcStagesRaw.length; i += 2) {
+                frames.push({
+                    data: extMcCabeBase.slice(0, 3).concat([{
+                        x: extMcStagesRaw.slice(0, i).map(p => p.x),
+                        y: extMcStagesRaw.slice(0, i).map(p => p.y),
+                        mode: 'lines', line: { color: '#ef4444', width: 2, shape: 'hv' }, name: 'Étages'
+                    }])
+                });
+            }
+            if (!frames.length) return;
+            let idx = 0;
+            function step() {
+                if (idx >= frames.length) { resetExtractionMcCabeChart(); return; }
+                Plotly.react('sim-plotly-ext-mccabe', frames[idx].data, layoutExtMcCabe);
+                idx++;
+                extAnimTimer = setTimeout(step, 450);
+            }
+            step();
+        };
+
+        if (ext.profile && ext.profile.length) {
+            Plotly.newPlot('sim-plotly-ext-comp', [{
+                x: ext.profile.map(p => p.stage), y: ext.profile.map(p => p.x),
+                name: 'x raffinat', mode: 'lines+markers', line: { color: '#60a5fa' }
+            }, {
+                x: ext.profile.map(p => p.stage), y: ext.profile.map(p => p.y),
+                name: 'y extrait', mode: 'lines+markers', line: { color: '#f87171' }
+            }], {
+                paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(255,255,255,0.05)',
+                xaxis: { title: 'Étage', tickfont: { color: '#cbd5e1' } },
+                yaxis: { title: 'Fraction soluté', tickfont: { color: '#cbd5e1' } },
+                font: { color: '#f8fafc' }
+            });
+        }
+        {% endif %}
+
+        // 9. Absorption G-L (McCabe-Thiele, profils, transfert)
+        {% if ('absorption' in results.process_types) and results.op_results and results.op_results.absorption %}
+        const absData = {{ results.op_results.absorption | tojson | safe }};
+        window.absReportData = {
+            process: 'absorption',
+            conclusion: absData.conclusion,
+            n_stages: absData.n_stages,
+            n_kremser: absData.n_kremser,
+            yield_pct: absData.yield_pct,
+            m: absData.m,
+            Z: absData.Z
+        };
+        const absPlotLayout = {
+            paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(255,255,255,0.05)',
+            font: { color: '#f8fafc' }, margin: { t: 30, b: 40, l: 50, r: 20 },
+            legend: { x: 0, y: 1, bgcolor: 'rgba(0,0,0,0.5)', font: { size: 9 } }
+        };
+        const absMcCabeTraces = [
+            { x: absData.diagram.eq_line.map(p => p.x), y: absData.diagram.eq_line.map(p => p.y),
+              mode: 'lines', line: { color: '#10b981', width: 2 }, name: "Équilibre y*=mx" },
+            { x: absData.diagram.op_line.map(p => p.x), y: absData.diagram.op_line.map(p => p.y),
+              mode: 'lines', line: { color: '#3b82f6', width: 2, dash: 'dash' }, name: 'Droite opératoire' }
+        ];
+        const absMcCabeLayout = {
+            ...absPlotLayout,
+            title: { text: 'McCabe-Thiele — Absorption', font: { size: 12, color: '#f8fafc' } },
+            xaxis: { title: 'x (liquide)', gridcolor: 'rgba(255,255,255,0.08)', tickfont: { color: '#cbd5e1' } },
+            yaxis: { title: 'y (gaz)', gridcolor: 'rgba(255,255,255,0.08)', tickfont: { color: '#cbd5e1' } }
+        };
+        Plotly.newPlot('plotly-absorption', absMcCabeTraces, absMcCabeLayout, { responsive: true });
+        window.resetAbsorptionMcCabe = function() {
+            Plotly.react('plotly-absorption', absMcCabeTraces, absMcCabeLayout);
+        };
+        window.startAbsorptionAnimation = function() {
+            const stages = absData.diagram.stages || [];
+            let xP = [], yP = [], frames = [];
+            for (let i = 0; i < stages.length; i++) {
+                xP.push(stages[i].x); yP.push(stages[i].y);
+                frames.push({ name: 's' + i, data: [{ x: xP.slice(), y: yP.slice(), mode: 'lines',
+                    line: { color: '#ef4444', width: 2, shape: 'hv' }, name: 'Étages' }] });
+            }
+            Plotly.addTraces('plotly-absorption', { x: [xP[0]], y: [yP[0]], mode: 'lines',
+                line: { color: '#ef4444', width: 2, shape: 'hv' }, name: 'Étages' });
+            if (frames.length) Plotly.animate('plotly-absorption', frames,
+                { transition: { duration: 80 }, frame: { duration: 80, redraw: false }, mode: 'next' });
+        };
+        if (absData.profile && absData.profile.length) {
+            Plotly.newPlot('plotly-abs-profile', [
+                { x: absData.profile.map(p => p.stage), y: absData.profile.map(p => p.y),
+                  name: 'y gaz', mode: 'lines+markers', line: { color: '#34d399' } },
+                { x: absData.profile.map(p => p.stage), y: absData.profile.map(p => p.x),
+                  name: 'x liquide', mode: 'lines+markers', line: { color: '#60a5fa' } }
+            ], { ...absPlotLayout, title: { text: 'Profil concentration', font: { size: 11 } },
+                xaxis: { title: 'Étage' }, yaxis: { title: 'Fraction' } }, { responsive: true });
+            Plotly.newPlot('plotly-abs-temp', [
+                { x: absData.profile.map(p => p.stage), y: absData.profile.map(p => p.T_gas_C),
+                  name: 'T gaz', mode: 'lines', line: { color: '#f87171' } },
+                { x: absData.profile.map(p => p.stage), y: absData.profile.map(p => p.T_liq_C),
+                  name: 'T liquide', mode: 'lines', line: { color: '#38bdf8' } }
+            ], { ...absPlotLayout, title: { text: 'Profil température', font: { size: 11 } },
+                xaxis: { title: 'Étage' }, yaxis: { title: '°C' } }, { responsive: true });
+        }
+        if (absData.height_yield) {
+            Plotly.newPlot('plotly-abs-yield', [{
+                x: absData.height_yield.map(p => p.Z_frac * absData.Z),
+                y: absData.height_yield.map(p => p.yield_pct),
+                mode: 'lines', fill: 'tozeroy', line: { color: '#a855f7' }, name: 'Rendement vs hauteur'
+            }], { ...absPlotLayout, title: { text: 'Rendement selon hauteur', font: { size: 11 } },
+                xaxis: { title: 'Z (m)' }, yaxis: { title: '%' } }, { responsive: true });
+        }
+        {% endif %}
+
+        // Animation de la molécule
+        const m1 = document.getElementById('molecule-c1');
+        const m2 = document.getElementById('molecule-c2');
+        if (m1 && m2) {
+            setTimeout(() => { 
+                m1.style.bottom = raw.y1 > 0.8 ? '350px' : '200px'; 
+                m2.style.bottom = raw.y2 > 0.6 ? '320px' : '50px'; 
+            }, 500);
+        }
+    });
+
+    async function exportPDF() {
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        let y = 10;
+        const src1 = document.getElementById('export-source');
+        if (src1 && typeof html2canvas !== 'undefined') {
+            const canvas1 = await html2canvas(src1);
+            pdf.addImage(canvas1.toDataURL('image/png'), 'PNG', 10, y, 190, 70);
+            y += 75;
+        }
+        if (window.extReportData) {
+            pdf.setFontSize(11);
+            pdf.text('Rapport ProcessInsight — Extraction L-L', 10, y);
+            y += 8;
+            const e = window.extReportData;
+            pdf.setFontSize(9);
+            pdf.text(`Conclusion: ${(e.conclusion || '').substring(0, 90)}`, 10, y); y += 6;
+            pdf.text(`N étages MT: ${e.n_stages} | Kremser: ${e.n_kremser} | Rendement: ${e.yield_pct}% | K: ${e.K}`, 10, y); y += 6;
+            pdf.text(e.validation_message || '', 10, y); y += 8;
+            const mccabeEl = document.getElementById('sim-plotly-ext-mccabe');
+            if (mccabeEl && typeof Plotly !== 'undefined' && Plotly.toImage) {
+                try {
+                    const img = await Plotly.toImage(mccabeEl, { format: 'png', width: 900, height: 520 });
+                    if (y > 200) { pdf.addPage(); y = 10; }
+                    pdf.addImage(img, 'PNG', 10, y, 190, 100);
+                } catch (err) { console.warn('Plot export:', err); }
+            }
+            pdf.save('ProcessInsight_Rapport_Extraction.pdf');
+            return;
+        }
+        if (window.absReportData) {
+            pdf.setFontSize(11);
+            pdf.text('Rapport ProcessInsight — Absorption G-L', 10, y);
+            y += 8;
+            const a = window.absReportData;
+            pdf.setFontSize(9);
+            pdf.text(`Conclusion: ${(a.conclusion || '').substring(0, 90)}`, 10, y); y += 6;
+            pdf.text(`N: ${a.n_stages} | Kremser: ${a.n_kremser} | Rendement: ${a.yield_pct}% | m: ${a.m} | Z: ${a.Z} m`, 10, y); y += 8;
+            const absEl = document.getElementById('plotly-absorption');
+            if (absEl && typeof Plotly !== 'undefined' && Plotly.toImage) {
+                try {
+                    const img = await Plotly.toImage(absEl, { format: 'png', width: 900, height: 520 });
+                    pdf.addImage(img, 'PNG', 10, y, 190, 100);
+                } catch (err) { console.warn('Plot export:', err); }
+            }
+            pdf.save('ProcessInsight_Rapport_Absorption.pdf');
+            return;
+        }
+        pdf.save('ProcessInsight_Rapport.pdf');
+    }
+
+    // --- COPILOT IA LOGIC ---
+    let copilotInitialized = false;
+
+    function speakText(text) {
+        if (!('speechSynthesis' in window)) {
+            alert("La lecture vocale n'est pas supportee par ce navigateur.");
+            return;
+        }
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'fr-FR';
+        utterance.rate = 0.95;
+        utterance.pitch = 1;
+        window.speechSynthesis.speak(utterance);
+    }
+
+    function stopReading() {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+        }
+    }
+
+    function readSimulationSummary() {
+        const ctx = getSimulationContext();
+        const parts = [
+            `Resume de simulation ProcessInsight.`,
+            `Procede: ${ctx.process_types}.`,
+            `Composants: ${ctx.components}.`,
+            `Modele utilise: ${ctx.model_used}.`,
+            `Temperature: ${ctx.T} degres Celsius.`,
+            `Pression systeme: ${ctx.P_sys} kilopascals.`,
+            `Pression de bulle: ${ctx.P_bubble} kilopascals.`,
+            `Pression de rosee: ${ctx.P_dew} kilopascals.`,
+            `Facteur Z: ${ctx.Z_factor}.`
+        ];
+        speakText(parts.filter(Boolean).join(' '));
+    }
+
+    function readVisibleSimulation() {
+        const source = document.getElementById('export-source-main');
+        const sidebar = document.getElementById('export-source');
+        const text = [sidebar, source]
+            .filter(Boolean)
+            .map(el => el.innerText)
+            .join(' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        speakText(text || "Aucune donnee lisible sur cette page.");
+    }
+
+    async function copyShareLink() {
+        const input = document.getElementById('shareLinkInput');
+        const status = document.getElementById('shareStatus');
+        if (!input) return;
+
+        try {
+            await navigator.clipboard.writeText(input.value);
+            if (status) status.textContent = "Lien copie. Vous pouvez l'envoyer a vos collegues.";
+        } catch(e) {
+            input.select();
+            document.execCommand('copy');
+            if (status) status.textContent = "Lien copie.";
+        }
+    }
+
+    function buildResearchLinks() {
+        const input = document.getElementById('researchQueryInput');
+        const container = document.getElementById('researchLinks');
+        if (!input || !container) return;
+
+        const baseQuery = (input.value || '').trim() || 'chemical engineering process';
+        const encoded = encodeURIComponent(baseQuery);
+        const reportQuery = encodeURIComponent(baseQuery + ' chemical engineering report filetype:pdf');
+        const courseQuery = encodeURIComponent(baseQuery + ' course lecture pdf');
+        const researchGateQuery = encodeURIComponent(baseQuery + ' process simulation');
+
+        const links = [
+            {
+                title: 'Videos YouTube',
+                tag: 'Video',
+                desc: 'Recherche des videos pedagogiques qui expliquent le principe et le fonctionnement du procede.',
+                url: `https://www.youtube.com/results?search_query=${encoded}`
+            },
+            {
+                title: 'ResearchGate',
+                tag: 'Articles',
+                desc: 'Recherche des publications et rapports scientifiques lies au procede et aux composants.',
+                url: `https://www.researchgate.net/search/publication?q=${researchGateQuery}`
+            },
+            {
+                title: 'Rapports PDF',
+                tag: 'Rapport',
+                desc: 'Recherche web ciblee vers des rapports PDF et documents techniques.',
+                url: `https://www.google.com/search?q=${reportQuery}`
+            },
+            {
+                title: 'Cours et supports',
+                tag: 'Cours',
+                desc: 'Recherche des cours, notes pedagogiques et supports universitaires.',
+                url: `https://www.google.com/search?q=${courseQuery}`
+            }
+        ];
+
+        container.innerHTML = links.map(link => `
+            <a class="research-card" href="${link.url}" target="_blank" rel="noopener noreferrer">
+                <span class="research-tag">${link.tag}</span>
+                <strong>${link.title}</strong>
+                <span>${link.desc}</span>
+            </a>
+        `).join('');
+    }
+
+    document.addEventListener('DOMContentLoaded', buildResearchLinks);
+    
+    function toggleChat() {
+        const win = document.getElementById('chatWindow');
+        win.classList.toggle('open');
+        if (win.classList.contains('open') && !copilotInitialized) {
+            initCopilot();
+            copilotInitialized = true;
+        }
+    }
+
+    function addMessage(text, isUser=false) {
+        const body = document.getElementById('chatBody');
+        const msg = document.createElement('div');
+        msg.className = 'chat-msg ' + (isUser ? 'msg-user' : 'msg-ai');
+        
+        // Nettoyage et formatage HTML simple du Markdown
+        let htmlText = text.replace(/\n\*/g, '<br>•').replace(/\n/g, '<br>');
+        htmlText = htmlText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        htmlText = htmlText.replace(/\*(.*?)\*/g, '<em>$1</em>');
+        
+        msg.innerHTML = htmlText;
+        if (!isUser) {
+            const readBtn = document.createElement('button');
+            readBtn.type = 'button';
+            readBtn.textContent = 'Lire';
+            readBtn.style.marginTop = '8px';
+            readBtn.style.border = 'none';
+            readBtn.style.borderRadius = '6px';
+            readBtn.style.padding = '4px 8px';
+            readBtn.style.background = 'rgba(59,130,246,0.35)';
+            readBtn.style.color = '#fff';
+            readBtn.style.cursor = 'pointer';
+            readBtn.onclick = () => speakText(text.replace(/[#*_`]/g, ' '));
+            msg.appendChild(document.createElement('br'));
+            msg.appendChild(readBtn);
+        }
+        body.appendChild(msg);
+        body.scrollTop = body.scrollHeight;
+    }
+
+    function getSimulationContext() {
+        const raw = {{ results.data | tojson | safe }};
+        const ops = {{ results.op_results | tojson | safe }};
+        return {
+            process_types: "{{ results.process_types | join(', ') }}",
+            model_used: "{{ results.model_used }}",
+            components: "{{ results.components | join(', ') if results.components else 'Gaz absorbé, Liquide absorbant' }}",
+            T: "{{ results.equilibrium.T }}",
+            P_sys: "{{ results.equilibrium.P_sys }}",
+            P_bubble: raw.P_bubble,
+            P_dew: raw.P_dew,
+            y1: raw.y1,
+            Z_factor: raw.Z_factor,
+            K1: raw.K1,
+            op_results: ops
+        };
+    }
+
+    async function processAIRequest(api_key, question) {
+        const payload = {
+            api_key: api_key,
+            context_data: getSimulationContext(),
+            question: question
+        };
+        
+        try {
+            const res = await fetch('/api/ask_ai', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                return data.answer || data.error || "Le serveur AI a renvoye une erreur.";
+            }
+            return data.answer || "Je n'ai pas recu de reponse exploitable du serveur AI.";
+        } catch(e) {
+            return "Erreur réseau avec le serveur AI.";
+        }
+    }
+
+    async function initCopilot() {
+        // Envoi context initial
+        const ans = await processAIRequest(null, null);
+        document.getElementById('welcome-msg').style.display = 'none';
+        addMessage(ans);
+    }
+
+    async function sendChatMessage() {
+        const input = document.getElementById('chatInput');
+        const text = input.value.trim();
+        if (!text) return;
+        
+        input.value = "";
+
+        addMessage(text, true);
+        
+        // Typing effect
+        const typingId = 'typing-' + Date.now();
+        const body = document.getElementById('chatBody');
+        const typingMsg = document.createElement('div');
+        typingMsg.className = 'chat-msg msg-ai';
+        typingMsg.id = typingId;
+        typingMsg.innerText = "L'Agent réfléchit...";
+        body.appendChild(typingMsg);
+        body.scrollTop = body.scrollHeight;
+
+        const ans = await processAIRequest(null, text);
+        
+        document.getElementById(typingId).remove();
+        addMessage(ans, false);
+    }
+</script>
+{% endblock %}

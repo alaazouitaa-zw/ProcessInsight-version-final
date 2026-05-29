@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProcessInsight - Simulation Thermodynamique & IA</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=2.0">
+</head>
+<body>
+
+    <!-- Floating Glass Navbar -->
+    <nav class="landing-navbar">
+        <div class="logo-area" style="margin: 0; display:flex; align-items:center; gap: 10px;">
+            <div style="width: 36px; height: 36px; background: linear-gradient(135deg, var(--sunset-orange), var(--sunset-rose)); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-family: 'Outfit'; color: #fff; box-shadow: 0 4px 15px rgba(217, 119, 6, 0.4);">P</div>
+            <h1 style="font-size: 1.5rem; margin:0; font-family: 'Outfit'; font-weight: 800; color: #fff; letter-spacing: -0.5px;">Process<span style="color: var(--sunset-amber);">Insight</span></h1>
+        </div>
+        
+        <div class="landing-nav-links">
+            <!-- À propos Dropdown -->
+            <div class="dropdown">
+                <button class="dropdown-trigger">
+                    À propos <span class="dropdown-arrow">▼</span>
+                </button>
+                <div class="dropdown-menu">
+                    <a href="#about-section">Qui sommes-nous ?</a>
+                    <a href="#about-section">Notre expertise</a>
+                    <a href="#about-section">Modélisation EOS</a>
+                </div>
+            </div>
+
+            <!-- Nos activités Dropdown -->
+            <div class="dropdown">
+                <button class="dropdown-trigger">
+                    Nos activités <span class="dropdown-arrow">▼</span>
+                </button>
+                <div class="dropdown-menu">
+                    <a href="#activities-section">Simulations Procédés</a>
+                    <a href="#activities-section">Optimisation Énergétique</a>
+                    <a href="#activities-section">Diagnostics IA</a>
+                </div>
+            </div>
+
+            <!-- Développement Dropdown -->
+            <div class="dropdown">
+                <button class="dropdown-trigger">
+                    Développement <span class="dropdown-arrow">▼</span>
+                </button>
+                <div class="dropdown-menu">
+                    <a href="#activities-section">Recherche & R&D</a>
+                    <a href="#activities-section">Intégration d'API</a>
+                    <a href="#activities-section">Solutions Sur-Mesure</a>
+                </div>
+            </div>
+
+            <a href="#contact-section">Contact</a>
+        </div>
+
+        <div class="landing-actions" style="display: flex; gap: 1rem; align-items: center;">
+            {% if user and user.is_authenticated %}
+                <a href="{{ url_for('select_page') }}" class="btn-sunset" style="padding: 0.7rem 1.8rem; border-radius: 30px; font-size: 0.9rem;">
+                    🚀 Tableau de Bord
+                </a>
+            {% else %}
+                <div class="landing-actions-inner" style="display: flex; gap: 1rem; align-items: center;">
+                    <a href="{{ url_for('login') }}" class="btn-sunset-outline" style="padding: 0.7rem 1.8rem; border-radius: 30px; font-size: 0.9rem;">
+                        Connexion
+                    </a>
+                    <a href="{{ url_for('register') }}" class="btn-sunset" style="padding: 0.7rem 1.8rem; border-radius: 30px; font-size: 0.9rem;">
+                        S'inscrire
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="hero-section" style="min-height: 100vh; padding: 7rem 2rem 3rem 2rem; display: flex; align-items: center; justify-content: center; max-width: 1300px; margin: 0 auto; gap: 3rem; flex-wrap: wrap;">
+        <div class="hero-glow"></div>
+        
+        <!-- Left Side: Pitch -->
+        <div class="hero-content" style="flex: 1.2; text-align: left; max-width: 650px; margin: 0; min-width: 320px;">
+            <h1 class="hero-title" style="font-size: 3.5rem; line-height: 1.15; text-align: left; margin-bottom: 1.5rem; letter-spacing: -1.5px;">
+                Simulez et Optimisez vos Procédés<br>avec l'Intelligence Thermodynamique
+            </h1>
+            <p class="hero-subtitle" style="text-align: left; margin: 0 0 2rem 0; font-size: 1.15rem; line-height: 1.6; color: #cbd5e1;">
+                Concevez des unités de distillation, de séparation flash, d'extraction et d'échange thermique grâce à nos modèles prédictifs avancés et nos diagnostics automatisés par IA.
+            </p>
+            
+            <div class="hero-features" style="margin-bottom: 2.5rem; display: flex; flex-direction: column; gap: 0.85rem;">
+                <div style="display: flex; align-items: center; gap: 12px; font-size: 1.05rem; color: #e2e8f0;">
+                    <span style="color: var(--sunset-amber); font-weight: bold; font-size: 1.1rem;">✔</span> Modélisation EOS (Raoult, NRTL, Peng-Robinson)
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px; font-size: 1.05rem; color: #e2e8f0;">
+                    <span style="color: var(--sunset-amber); font-weight: bold; font-size: 1.1rem;">✔</span> Simulation multi-procédés simultanés
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px; font-size: 1.05rem; color: #e2e8f0;">
+                    <span style="color: var(--sunset-amber); font-weight: bold; font-size: 1.1rem;">✔</span> Copilote d'analyse IA instantanée
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 1rem;">
+                <a href="#about-section" class="btn-sunset-outline" style="font-size: 0.95rem; padding: 0.9rem 2rem; border-radius: 30px;">
+                    Découvrir la Plateforme
+                </a>
+            </div>
+        </div>
+
+        <!-- Right Side: Beautiful Glassmorphic Login/Register/Profile Card -->
+        <div class="hero-auth-area" style="flex: 0.9; width: 100%; max-width: 460px; z-index: 10; margin-top: 1rem; min-width: 300px;">
+            {% if user and user.is_authenticated %}
+                <div class="glass-card" style="padding: 3rem 2.5rem; width: 100%; border: 1px solid rgba(255, 255, 255, 0.08); background: rgba(255, 255, 255, 0.02); box-shadow: 0 20px 50px rgba(0,0,0,0.5);">
+                    <div style="font-size: 3rem; text-align: center; margin-bottom: 1.5rem; filter: drop-shadow(0 0 10px rgba(245,158,11,0.2));">🚀</div>
+                    <h3 style="font-family: 'Outfit'; font-size: 1.8rem; font-weight: 700; color: #fff; text-align: center; margin-bottom: 0.5rem;">Ravi de vous revoir !</h3>
+                    <p style="color: var(--sunset-amber); text-align: center; margin-bottom: 2rem; font-weight: 500; font-size: 1rem;">
+                        {{ user.first_name or user.username }} ({{ user.profession or 'Ingénieur' }})
+                    </p>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem;">
+                        <a href="{{ url_for('select_page') }}" class="btn-sunset" style="width: 100%; border-radius: 12px; font-weight: 700; padding: 1.1rem; font-size: 1.05rem;">
+                            Espace de Simulation ➔
+                        </a>
+                        <a href="{{ url_for('profile_page') }}" class="btn-sunset-outline" style="width: 100%; border-radius: 12px; padding: 1rem; font-weight: 500; text-align: center; display: block; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.01);">
+                            👤 Gérer mon Profil
+                        </a>
+                        <a href="{{ url_for('logout') }}" style="text-align: center; color: #f43f5e; font-size: 0.9rem; text-decoration: none; margin-top: 1rem; font-weight: 500; transition: opacity 0.2s;" onmouseover="this.style.opacity=0.8" onmouseout="this.style.opacity=1;">
+                            Se déconnecter
+                        </a>
+                    </div>
+                </div>
+            {% else %}
+                <div class="glass-card" style="padding: 2rem; width: 100%; border: 1px solid rgba(255, 255, 255, 0.08); background: rgba(255, 255, 255, 0.02); box-shadow: 0 20px 50px rgba(0,0,0,0.5);">
+                    {% with messages = get_flashed_messages(with_categories=true, category_filter=["auth_error", "auth_success"]) %}
+                      {% if messages %}
+                        {% for category, message in messages %}
+                          {% if category == 'auth_success' %}
+                          <div style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(16, 185, 129, 0.15); border-left: 4px solid #10b981; border-radius: 8px; color: #fff; font-size: 0.9rem;">
+                              {{ message }}
+                          </div>
+                          {% else %}
+                          <div style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(244, 63, 94, 0.15); border-left: 4px solid #f43f5e; border-radius: 8px; color: #fff; font-size: 0.9rem;">
+                              {{ message }}
+                          </div>
+                          {% endif %}
+                        {% endfor %}
+                      {% endif %}
+                    {% endwith %}
+                    
+                    <!-- Tabs Header -->
+                    <div style="display: flex; gap: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); padding-bottom: 1rem; margin-bottom: 1.5rem;">
+                        <button id="tab-login-btn" onclick="switchAuthTab('login')" style="flex: 1; padding: 0.75rem; border: none; border-radius: 8px; background: rgba(245, 158, 11, 0.15); color: #fff; font-weight: bold; cursor: pointer; transition: all 0.3s; font-family: 'Outfit'; font-size: 1.05rem; box-shadow: 0 0 10px rgba(245,158,11,0.15); outline: none; user-select: none; -webkit-user-select: none; -moz-user-select: none;">Connexion</button>
+                        <button id="tab-register-btn" onclick="switchAuthTab('register')" style="flex: 1; padding: 0.75rem; border: none; border-radius: 8px; background: transparent; color: #94a3b8; font-weight: bold; cursor: pointer; transition: all 0.3s; font-family: 'Outfit'; font-size: 1.05rem; outline: none; user-select: none; -webkit-user-select: none; -moz-user-select: none;">S'inscrire</button>
+                    </div>
+                    
+                    <!-- Login Panel -->
+                    <div id="panel-login" style="display: block;">
+                        <form class="contact-form" action="{{ url_for('login') }}" method="POST" style="gap: 1.25rem;">
+                            <div style="display: flex; flex-direction: column; gap: 6px;">
+                                <label style="font-size: 0.85rem; color: #94a3b8; font-weight: 500;">Nom d'utilisateur</label>
+                                <input type="text" name="username" placeholder="Entrez votre pseudo" required style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); padding: 0.9rem; border-radius: 10px; color: #fff; outline: none; width: 100%;">
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 6px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <label style="font-size: 0.85rem; color: #94a3b8; font-weight: 500;">Mot de passe</label>
+                                    <a href="{{ url_for('forgot_password') }}" style="font-size: 0.8rem; color: var(--sunset-amber); text-decoration: none;">Oublié ?</a>
+                                </div>
+                                <input type="password" name="password" placeholder="••••••••" required style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); padding: 0.9rem; border-radius: 10px; color: #fff; outline: none; width: 100%;">
+                            </div>
+                            <button type="submit" class="btn-sunset" style="width: 100%; border-radius: 10px; margin-top: 0.5rem; font-weight: 700; padding: 1rem;">
+                                Se Connecter ➔
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <!-- Register Panel -->
+                    <div id="panel-register" style="display: none;">
+                        <form class="contact-form" action="{{ url_for('register') }}" method="POST" style="gap: 1rem; max-height: 380px; overflow-y: auto; padding-right: 5px;">
+                            <div class="auth-inline-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                                <div style="display: flex; flex-direction: column; gap: 4px;">
+                                    <label style="font-size: 0.8rem; color: #94a3b8;">Prénom</label>
+                                    <input type="text" name="first_name" placeholder="Jean" required style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); padding: 0.75rem; border-radius: 8px; color: #fff; width: 100%;">
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 4px;">
+                                    <label style="font-size: 0.8rem; color: #94a3b8;">Nom</label>
+                                    <input type="text" name="last_name" placeholder="Dupont" required style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); padding: 0.75rem; border-radius: 8px; color: #fff; width: 100%;">
+                                </div>
+                            </div>
+                            
+                            <div style="display: flex; flex-direction: column; gap: 4px;">
+                                <label style="font-size: 0.8rem; color: #94a3b8;">Pseudo unique</label>
+                                <input type="text" name="username" placeholder="jdupont" required style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); padding: 0.75rem; border-radius: 8px; color: #fff; width: 100%;">
+                            </div>
+                            
+                            <div style="display: flex; flex-direction: column; gap: 4px;">
+                                <label style="font-size: 0.8rem; color: #94a3b8;">E-mail</label>
+                                <input type="email" name="email" placeholder="jean.dupont@univ.fr" required style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); padding: 0.75rem; border-radius: 8px; color: #fff; width: 100%;">
+                            </div>
+                            
+                            <div style="display: flex; flex-direction: column; gap: 4px;">
+                                <label style="font-size: 0.8rem; color: #94a3b8;">Mot de passe</label>
+                                <input type="password" name="password" placeholder="Min. 6 caractères" required style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); padding: 0.75rem; border-radius: 8px; color: #fff; width: 100%;">
+                            </div>
+                            
+                            <div class="auth-inline-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                                <div style="display: flex; flex-direction: column; gap: 4px;">
+                                    <label style="font-size: 0.8rem; color: #94a3b8;">Profession</label>
+                                    <select name="profession" style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); padding: 0.75rem; border-radius: 8px; color: #fff; width: 100%; outline: none; border-style: solid; box-sizing: border-box;">
+                                        <option value="Ingénieur">Ingénieur</option>
+                                        <option value="Étudiant" selected>Étudiant</option>
+                                        <option value="Enseignant">Enseignant</option>
+                                        <option value="Chercheur">Chercheur</option>
+                                    </select>
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 4px;">
+                                    <label style="font-size: 0.8rem; color: #94a3b8;">Âge</label>
+                                    <input type="number" name="age" placeholder="23" style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); padding: 0.75rem; border-radius: 8px; color: #fff; width: 100%;">
+                                </div>
+                            </div>
+                            
+                            <button type="submit" class="btn-sunset" style="width: 100%; border-radius: 10px; margin-top: 0.5rem; font-weight: 700; padding: 0.95rem;">
+                                Créer mon Compte ➔
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </header>
+
+    <!-- À propos Section -->
+    <section id="about-section" class="landing-section">
+        <div class="section-header">
+            <h2 class="section-title">À Propos de ProcessInsight</h2>
+            <p class="section-desc">Une plateforme d'ingénierie chimique innovante combinant la rigueur scientifique des équations d'état et la puissance d'analyse de l'IA.</p>
+        </div>
+
+        <div class="glass-grid">
+            <div class="glass-card">
+                <div class="card-icon">🔬</div>
+                <h3 class="card-title">Modèles d'Équilibre Avancés</h3>
+                <p class="card-text">
+                    Nous modélisons les équilibres liquide-vapeur (ELV) et liquide-liquide (ELL) avec une précision absolue en utilisant les modèles thermodynamiques de Peng-Robinson, NRTL, Raoult et UNIFAC.
+                </p>
+            </div>
+            
+            <div class="glass-card">
+                <div class="card-icon">💡</div>
+                <h3 class="card-title">Aide à la Décision IA</h3>
+                <p class="card-text">
+                    Notre moteur IA propriétaire analyse instantanément vos configurations de simulation et vous propose des optimisations de rendement, des corrections thermodynamiques et des solutions de sécurité.
+                </p>
+            </div>
+
+            <div class="glass-card">
+                <div class="card-icon">📊</div>
+                <h3 class="card-title">Visualisations Dynamiques</h3>
+                <p class="card-text">
+                    Analysez en temps réel vos tracés de McCabe-Thiele, vos diagrammes ternaires de Hunter-Nash et vos courbes de sensibilité opératoire grâce à des animations vectorielles fluides et interactives.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Nos activités / Mission Section -->
+    <section id="activities-section" class="landing-section" style="background: rgba(255, 255, 255, 0.01); border-radius: 40px; border: 1px solid rgba(255, 255, 255, 0.02); padding: 5rem 3rem;">
+        <div class="section-header">
+            <h2 class="section-title">Nos Activités & Domaines d'Expertise</h2>
+            <p class="section-desc">Nous accompagnons les ingénieurs et chercheurs dans la conception et l'analyse thermodynamique de leurs procédés industriels.</p>
+        </div>
+
+        <div class="glass-grid" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
+            <div class="glass-card" style="padding: 2rem;">
+                <div style="font-size: 2rem; margin-bottom: 1rem;">🔥</div>
+                <h4 class="card-title" style="font-size: 1.15rem;">Distillation Colonne</h4>
+                <p class="card-text" style="font-size: 0.85rem;">Calcul précis des plateaux d'équilibre, bilan de matière global et tracé de McCabe-Thiele en temps réel.</p>
+            </div>
+
+            <div class="glass-card" style="padding: 2rem;">
+                <div style="font-size: 2rem; margin-bottom: 1rem;">⚡</div>
+                <h4 class="card-title" style="font-size: 1.15rem;">Séparateurs Flash</h4>
+                <p class="card-text" style="font-size: 0.85rem;">Calculs des fractions de vaporisation cible, des pertes de charges et des équilibres thermiques diphasiques.</p>
+            </div>
+
+            <div class="glass-card" style="padding: 2rem;">
+                <div style="font-size: 2rem; margin-bottom: 1rem;">🫧</div>
+                <h4 class="card-title" style="font-size: 1.15rem;">Extraction LLE</h4>
+                <p class="card-text" style="font-size: 0.85rem;">Diagrammes ternaires et bilans massiques de Hunter-Nash pour séparations à contre-courant.</p>
+            </div>
+
+            <div class="glass-card" style="padding: 2rem;">
+                <div style="font-size: 2rem; margin-bottom: 1rem;">⚙️</div>
+                <h4 class="card-title" style="font-size: 1.15rem;">Pompes & Compresseurs</h4>
+                <p class="card-text" style="font-size: 0.85rem;">Calcul de la puissance requise, rendements isentropiques, NPSH et diagnostics de cavitation.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section id="contact-section" class="landing-section">
+        <div class="section-header">
+            <h2 class="section-title">Prendre Contact</h2>
+            <p class="section-desc">Une question sur nos services, notre moteur de calcul ou besoin d'une intégration sur-mesure ? Écrivez-nous !</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true, category_filter=["contact_error", "contact_success"]) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              {% if category == 'contact_error' %}
+              <div style="max-width: 900px; margin: 0 auto 2rem auto; padding: 1rem 1.25rem; background: rgba(244, 63, 94, 0.12); border-left: 4px solid #f43f5e; border-radius: 8px; color: #e2e8f0;">
+                  {{ message }}
+              </div>
+              {% else %}
+              <div style="max-width: 900px; margin: 0 auto 2rem auto; padding: 1rem 1.25rem; background: rgba(16, 185, 129, 0.12); border-left: 4px solid #10b981; border-radius: 8px; color: #e2e8f0;">
+                  {{ message }}
+              </div>
+              {% endif %}
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <div class="contact-container">
+            <div class="contact-info">
+                <h3 style="font-family: 'Outfit'; font-size: 2rem; font-weight: 700; margin-bottom: 1.5rem; color: #fff;">Nos Bureaux</h3>
+                <p style="color: #94a3b8; margin-bottom: 2.5rem; line-height: 1.6;">
+                    Notre équipe d'ingénieurs et de développeurs IA est à votre entière disposition pour accélérer la conception de vos usines chimiques de demain.
+                </p>
+                
+                <div class="contact-item">
+                    <div class="contact-icon">✉️</div>
+                    <div class="contact-details">
+                        <h4>E-mail</h4>
+                        <p>appthermoadmin@gmail.com</p>
+                    </div>
+                </div>
+            </div>
+
+            <form class="contact-form" action="{{ url_for('contact') }}" method="POST">
+                <div class="form-row">
+                    <input type="text" name="name" placeholder="Prénom Nom" required>
+                    <input type="email" name="email" placeholder="Adresse e-mail" required>
+                </div>
+                <input type="text" name="subject" placeholder="Sujet" required>
+                <textarea rows="5" name="message" placeholder="Votre message ou question technique..." required></textarea>
+                <button type="submit" class="btn-sunset" style="border-radius: 10px;">
+                    Envoyer le Message
+                </button>
+            </form>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="landing-footer">
+        <p>&copy; 2026 ProcessInsight Inc. Tous droits réservés. Conçu pour les ingénieurs d'excellence.</p>
+    </footer>
+
+    <!-- client-side Auth tab switcher -->
+    <script>
+        function switchAuthTab(tab) {
+            const loginBtn = document.getElementById('tab-login-btn');
+            const registerBtn = document.getElementById('tab-register-btn');
+            const loginPanel = document.getElementById('panel-login');
+            const registerPanel = document.getElementById('panel-register');
+            
+            if (!loginBtn || !registerBtn || !loginPanel || !registerPanel) return;
+            
+            if (tab === 'login') {
+                loginBtn.style.background = 'rgba(245, 158, 11, 0.15)';
+                loginBtn.style.color = '#fff';
+                loginBtn.style.boxShadow = '0 0 10px rgba(245,158,11,0.15)';
+                
+                registerBtn.style.background = 'transparent';
+                registerBtn.style.color = '#94a3b8';
+                registerBtn.style.boxShadow = 'none';
+                
+                loginPanel.style.display = 'block';
+                registerPanel.style.display = 'none';
+            } else {
+                registerBtn.style.background = 'rgba(245, 158, 11, 0.15)';
+                registerBtn.style.color = '#fff';
+                registerBtn.style.boxShadow = '0 0 10px rgba(245,158,11,0.15)';
+                
+                loginBtn.style.background = 'transparent';
+                loginBtn.style.color = '#94a3b8';
+                loginBtn.style.boxShadow = 'none';
+                
+                loginPanel.style.display = 'none';
+                registerPanel.style.display = 'block';
+            }
+        }
+    </script>
+</body>
+</html>

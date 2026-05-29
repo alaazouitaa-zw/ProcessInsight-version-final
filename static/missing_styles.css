@@ -1,0 +1,89 @@
+﻿.platform-overview {
+    display: flex;
+    justify-content: space-between;
+    gap: 1.5rem;
+    align-items: center;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+    padding: 1.6rem;
+    margin-bottom: 1.2rem;
+}
+
+.platform-overview h2 {
+    margin: 0.15rem 0 0.45rem;
+    font-size: 1.9rem;
+    color: var(--text-main);
+}
+
+.platform-overview p {
+    max-width: 760px;
+    line-height: 1.55;
+    color: var(--text-muted);
+}
+
+.platform-eyebrow {
+    margin: 0;
+    color: var(--primary);
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.platform-actions {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.platform-actions a {
+    color: #fff;
+    background: linear-gradient(135deg, var(--primary), #2563eb);
+    border: none;
+    border-radius: 8px;
+    padding: 0.65rem 0.85rem;
+    text-decoration: none;
+    font-weight: 700;
+    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.platform-actions a:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.6);
+}
+
+.platform-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 0.9rem;
+    margin-bottom: 2rem;
+}
+
+.platform-kpis > div {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    padding: 1rem;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
+
+.platform-kpis strong {
+    display: block;
+    color: var(--text-main);
+    margin-bottom: 0.35rem;
+    font-size: 0.98rem;
+}
+
+.platform-kpis span {
+    color: var(--text-muted);
+    font-size: 0.88rem;
+    line-height: 1.45;
+}
