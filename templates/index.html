@@ -57,22 +57,7 @@
             <a href="#contact-section">Contact</a>
         </div>
 
-        <div class="landing-actions" style="display: flex; gap: 1rem; align-items: center;">
-            {% if user and user.is_authenticated %}
-                <a href="{{ url_for('select_page') }}" class="btn-sunset" style="padding: 0.7rem 1.8rem; border-radius: 30px; font-size: 0.9rem;">
-                    🚀 Tableau de Bord
-                </a>
-            {% else %}
-                <div class="landing-actions-inner" style="display: flex; gap: 1rem; align-items: center;">
-                    <a href="{{ url_for('login') }}" class="btn-sunset-outline" style="padding: 0.7rem 1.8rem; border-radius: 30px; font-size: 0.9rem;">
-                        Connexion
-                    </a>
-                    <a href="{{ url_for('register') }}" class="btn-sunset" style="padding: 0.7rem 1.8rem; border-radius: 30px; font-size: 0.9rem;">
-                        S'inscrire
-                    </a>
-                </div>
-            {% endif %}
-        </div>
+
     </nav>
 
     <!-- Hero Section -->
