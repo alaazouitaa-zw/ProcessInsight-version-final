@@ -20,7 +20,7 @@ def send_email(to_email, subject, html_content, reply_to=None):
     msg.attach(part)
     
     try:
-        with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT) as server:
+        with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, timeout=5) as server:
             server.login(SENDER_EMAIL, SENDER_PASSWORD)
             server.sendmail(SENDER_EMAIL, to_email, msg.as_string())
         print(f"Email sent to {to_email}")
