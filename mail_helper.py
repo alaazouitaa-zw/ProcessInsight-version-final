@@ -1,30 +1,38 @@
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import os
+import requests
 from html import escape
 
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 465
+# Brevo API Configuration
+BREVO_API_KEY = os.environ.get("BREVO_API_KEY")
 SENDER_EMAIL = "appthermoadmin@gmail.com"
-SENDER_PASSWORD = "jyno yywp zkad fmlf"
+SENDER_NAME = "ProcessInsight Admin"
 
 def send_email(to_email, subject, html_content, reply_to=None):
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = f"ProcessInsight Admin <{SENDER_EMAIL}>"
-    msg["To"] = to_email
+    url = "https://api.brevo.com/v3/smtp/email"
+    headers = {
+        "accept": "application/json",
+        "api-key": BREVO_API_KEY,
+        "content-type": "application/json"
+    }
+    
+    payload = {
+        "sender": {"name": SENDER_NAME, "email": SENDER_EMAIL},
+        "to": [{"email": to_email}],
+        "subject": subject,
+        "htmlContent": html_content
+    }
+    
     if reply_to:
-        msg["Reply-To"] = reply_to
-    
-    part = MIMEText(html_content, "html")
-    msg.attach(part)
-    
+        payload["replyTo"] = {"email": reply_to}
+        
     try:
-        with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, timeout=5) as server:
-            server.login(SENDER_EMAIL, SENDER_PASSWORD)
-            server.sendmail(SENDER_EMAIL, to_email, msg.as_string())
-        print(f"Email sent to {to_email}")
-        return True
+        response = requests.post(url, json=payload, headers=headers, timeout=10)
+        if response.status_code in (200, 201, 202):
+            print(f"Email sent to {to_email} via Brevo API")
+            return True
+        else:
+            print(f"Failed to send email to {to_email}. Brevo Error: {response.text}")
+            return False
     except Exception as e:
         print(f"Failed to send email to {to_email}: {e}")
         return False
