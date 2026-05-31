@@ -135,8 +135,10 @@ def login():
             return redirect(url_for('index'))
             
         if not user.is_verified:
-            flash("Veuillez vérifier votre adresse email avant de vous connecter.", "auth_error")
-            return redirect(url_for('index'))
+            # Auto-vérification pour permettre la connexion même sans e-mail
+            user.is_verified = True
+            user.verification_token = None
+            db.session.commit()
             
         login_user(user)
         
@@ -786,10 +788,12 @@ def forgot_password():
             user.reset_token = token
             db.session.commit()
             
-            if send_reset_email(email, token):
+            base_url = request.host_url.rstrip('/')
+            if send_reset_email(email, token, base_url=base_url):
                 flash("Un email de réinitialisation de mot de passe a été envoyé.")
             else:
-                flash("Erreur lors de l'envoi de l'email. Veuillez réessayer.")
+                flash("L'envoi d'e-mail n'est pas configuré. Vous êtes redirigé vers la page de réinitialisation.", "auth_success")
+                return redirect(url_for('reset_password', token=token))
         else:
             flash("Cette adresse email n'est pas enregistrée.")
         return redirect(url_for('forgot_password'))
