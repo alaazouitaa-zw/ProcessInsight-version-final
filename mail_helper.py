@@ -29,8 +29,11 @@ def send_email(to_email, subject, html_content, reply_to=None):
         print(f"Failed to send email to {to_email}: {e}")
         return False
 
-def send_verification_email(user_email, token):
-    link = f"http://127.0.0.1:5000/verify/{token}"
+def send_verification_email(user_email, token, base_url=None):
+    if base_url:
+        link = f"{base_url}/verify/{token}"
+    else:
+        link = f"http://127.0.0.1:5000/verify/{token}"
     subject = "ProcessInsight - Activation de votre compte"
     html_content = f"""
     <html>
@@ -60,8 +63,11 @@ def send_verification_email(user_email, token):
     """
     return send_email(user_email, subject, html_content)
 
-def send_reset_email(user_email, token):
-    link = f"http://127.0.0.1:5000/reset_password/{token}"
+def send_reset_email(user_email, token, base_url=None):
+    if base_url:
+        link = f"{base_url}/reset_password/{token}"
+    else:
+        link = f"http://127.0.0.1:5000/reset_password/{token}"
     subject = "ProcessInsight - Réinitialisation de votre mot de passe"
     html_content = f"""
     <html>

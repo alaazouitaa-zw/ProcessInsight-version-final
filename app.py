@@ -213,24 +213,26 @@ def register():
         db.session.commit()
 
         from mail_helper import send_verification_email
+        base_url = request.host_url.rstrip('/')
         email_sent = False
         try:
-            send_verification_email(email, v_token)
-            email_sent = True
+            result = send_verification_email(email, v_token, base_url=base_url)
+            email_sent = bool(result)
         except Exception as e:
             print(f"SMTP Email Send Failed: {e}")
+            email_sent = False
 
         if email_sent:
             flash("Inscription réussie ! Veuillez vérifier votre boîte mail pour activer votre compte.", "auth_success")
+            print(f"VERIFICATION LINK FOR {username}: {base_url}/verify/{v_token}")
+            return redirect(url_for('index'))
         else:
-            # Si l'email échoue → on active le compte directement
+            # SMTP non configuré sur Render → activer et connecter directement
             new_user.is_verified = True
             new_user.verification_token = None
             db.session.commit()
-            flash("Inscription réussie ! Vous pouvez maintenant vous connecter.", "auth_success")
-
-        print(f"LOCAL VERIFICATION LINK FOR {username}: http://127.0.0.1:5000/verify/{v_token}")
-        return redirect(url_for('index'))
+            login_user(new_user)
+            return redirect(url_for('select_page'))
     return redirect(url_for('index'))
 
 @app.route('/logout')
