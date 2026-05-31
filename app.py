@@ -216,23 +216,17 @@ def register():
         base_url = request.host_url.rstrip('/')
         email_sent = False
         try:
-            result = send_verification_email(email, v_token, base_url=base_url)
-            email_sent = bool(result)
+            success, msg = send_verification_email(email, v_token, base_url=base_url)
         except Exception as e:
-            print(f"SMTP Email Send Failed: {e}")
-            email_sent = False
-
-        if email_sent:
+            success, msg = False, str(e)
+            
+        if success:
             flash("Inscription réussie ! Veuillez vérifier votre boîte mail pour activer votre compte.", "auth_success")
             print(f"VERIFICATION LINK FOR {username}: {base_url}/verify/{v_token}")
             return redirect(url_for('index'))
         else:
-            # SMTP non configuré sur Render → activer et connecter directement
-            new_user.is_verified = True
-            new_user.verification_token = None
-            db.session.commit()
-            login_user(new_user)
-            return redirect(url_for('select_page'))
+            flash(f"Erreur serveur (e-mail) : {msg}", "auth_error")
+            return redirect(url_for('index'))
     return redirect(url_for('index'))
 
 @app.route('/logout')
@@ -786,10 +780,11 @@ def forgot_password():
             user.reset_token = token
             db.session.commit()
             
-            if send_reset_email(email, token):
+            success, msg = send_reset_email(email, token)
+            if success:
                 flash("Un email de réinitialisation de mot de passe a été envoyé.")
             else:
-                flash("Erreur lors de l'envoi de l'email. Veuillez réessayer.")
+                flash(f"Erreur d'envoi : {msg}")
         else:
             flash("Cette adresse email n'est pas enregistrée.")
         return redirect(url_for('forgot_password'))

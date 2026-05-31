@@ -29,13 +29,15 @@ def send_email(to_email, subject, html_content, reply_to=None):
         response = requests.post(url, json=payload, headers=headers, timeout=10)
         if response.status_code in (200, 201, 202):
             print(f"Email sent to {to_email} via Brevo API")
-            return True
+            return True, "Succès"
         else:
-            print(f"Failed to send email to {to_email}. Brevo Error: {response.text}")
-            return False
+            err = f"Erreur Brevo: {response.text}"
+            print(f"Failed to send email to {to_email}. {err}")
+            return False, err
     except Exception as e:
+        err = f"Erreur système: {str(e)}"
         print(f"Failed to send email to {to_email}: {e}")
-        return False
+        return False, err
 
 def send_verification_email(user_email, token, base_url=None):
     if base_url:
