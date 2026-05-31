@@ -163,28 +163,42 @@ def register():
     if request.method == 'POST':
         username = request.form.get('username')
         email = request.form.get('email')
-        
-        if User.query.filter_by(username=username).first():
-            flash("Ce nom d'utilisateur existe déjà.", "auth_error")
-            return redirect(url_for('index'))
-            
+
         import re
         email_pattern = r'^[\w\.-]+@[\w\.-]+\.\w+$'
         if not re.match(email_pattern, email):
             flash("Format d'adresse email invalide.", "auth_error")
             return redirect(url_for('index'))
-            
-        if User.query.filter_by(email=email).first():
-            flash("Cette adresse email est déjà utilisée.", "auth_error")
-            return redirect(url_for('index'))
-            
+
+        # Si un compte non vérifié existe déjà avec ce username ou email, on le supprime
+        # pour permettre une nouvelle inscription (l'email de vérification n'est jamais arrivé)
+        existing_by_username = User.query.filter_by(username=username).first()
+        if existing_by_username:
+            if existing_by_username.is_verified:
+                flash("Ce nom d'utilisateur existe déjà.", "auth_error")
+                return redirect(url_for('index'))
+            else:
+                # Compte non vérifié bloqué → on le remplace
+                db.session.delete(existing_by_username)
+                db.session.commit()
+
+        existing_by_email = User.query.filter_by(email=email).first()
+        if existing_by_email:
+            if existing_by_email.is_verified:
+                flash("Cette adresse email est déjà utilisée.", "auth_error")
+                return redirect(url_for('index'))
+            else:
+                # Compte non vérifié bloqué → on le remplace
+                db.session.delete(existing_by_email)
+                db.session.commit()
+
         hashed_pw = generate_password_hash(request.form.get('password'), method='pbkdf2:sha256')
         import secrets
         v_token = secrets.token_hex(16)
-        
+
         new_user = User(
-            username=username, 
-            password_hash=hashed_pw, 
+            username=username,
+            password_hash=hashed_pw,
             is_admin=False,
             is_verified=False,
             verification_token=v_token,
@@ -197,16 +211,25 @@ def register():
         )
         db.session.add(new_user)
         db.session.commit()
-        
+
         from mail_helper import send_verification_email
+        email_sent = False
         try:
             send_verification_email(email, v_token)
+            email_sent = True
         except Exception as e:
             print(f"SMTP Email Send Failed: {e}")
-            
+
+        if email_sent:
+            flash("Inscription réussie ! Veuillez vérifier votre boîte mail pour activer votre compte.", "auth_success")
+        else:
+            # Si l'email échoue → on active le compte directement
+            new_user.is_verified = True
+            new_user.verification_token = None
+            db.session.commit()
+            flash("Inscription réussie ! Vous pouvez maintenant vous connecter.", "auth_success")
+
         print(f"LOCAL VERIFICATION LINK FOR {username}: http://127.0.0.1:5000/verify/{v_token}")
-        
-        flash("Inscription réussie ! Veuillez vérifier votre boîte mail pour activer votre compte.", "auth_success")
         return redirect(url_for('index'))
     return redirect(url_for('index'))
 
