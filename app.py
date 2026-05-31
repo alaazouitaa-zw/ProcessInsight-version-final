@@ -780,7 +780,8 @@ def forgot_password():
             user.reset_token = token
             db.session.commit()
             
-            success, msg = send_reset_email(email, token)
+            base_url = request.host_url.rstrip('/')
+            success, msg = send_reset_email(email, token, base_url=base_url)
             if success:
                 flash("Un email de réinitialisation de mot de passe a été envoyé.")
             else:
