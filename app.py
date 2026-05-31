@@ -29,9 +29,14 @@ CORS(app)
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'thermo.db')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+basedir = os.path.abspath(os.path.dirname(__file__))
 
-db.init_app(app)
+db_url = os.environ.get('DATABASE_URL', 'sqlite:///' + os.path.join(basedir, 'thermo.db'))
+if db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = db_url
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 login_manager = LoginManager()
 login_manager.login_view = 'login'
